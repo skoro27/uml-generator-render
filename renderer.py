@@ -1,28 +1,26 @@
 import requests
-import zlib
-import base64
-import re
 from pathlib import Path
+from io import BytesIO
 
 
 def encode_plantuml(puml_code: str) -> str:
     """
-    Enkodira PlantUML kod u format koji očekuje online PlantUML server.
+    Enkodira PlantUML kod koristeći standardni PlantUML text encoding.
+    Ovo je najjednostavniji i najpouzdaniji način.
     """
-    # Kompresuj kod
-    compressed = zlib.compress(puml_code.encode('utf-8'))
+    import base64
+    import zlib
     
-    # Ukloni prva 2 bajta (DEFLATE header) i poslednja 4 bajta (checksum)
-    # Ovo je potrebno za PlantUML server
-    compressed = compressed[2:-4]
+    # Kompresuj
+    compressed = zlib.compress(puml_code.encode('utf-8'), level=9)
     
     # Base64 enkodiranje
-    encoded = base64.b64encode(compressed).decode('ascii')
+    b64 = base64.b64encode(compressed).decode('ascii')
     
-    # PlantUML specifično enkodiranje: + -> -, / -> _
-    encoded = encoded.replace('+', '-').replace('/', '_')
+    # PlantUML specijalno enkodiranje
+    b64 = b64.replace('+', '-').replace('/', '_')
     
-    return encoded
+    return b64
 
 
 def run_plantuml(puml_file: Path):
@@ -30,48 +28,53 @@ def run_plantuml(puml_file: Path):
     Renderuje PlantUML fajl koristeći online PlantUML server.
     Vraća (return_code, error_message).
     """
-    # Pročitaj PlantUML kod
     puml_code = puml_file.read_text(encoding="utf-8")
     
-    # Enkoduj za online server
+    # Probaj prvo sa plantuml.com/plantuml/png/ (bez ~1)
     encoded = encode_plantuml(puml_code)
     
-    # PlantUML online server URL
-    url = f"https://www.plantuml.com/plantuml/png/{encoded}"
+    urls_to_try = [
+        f"https://www.plantuml.com/plantuml/png/{encoded}",
+        f"https://www.plantuml.com/plantuml/png/~1{encoded}",
+        f"https://www.plantuml.com/plantuml/svg/{encoded}",
+        f"https://www.plantuml.com/plantuml/svg/~1{encoded}",
+    ]
     
-    try:
-        # Pošalji zahtev
-        response = requests.get(url, timeout=30)
-        
-        # Proveri da li je uspešno
-        if response.status_code == 200:
-            # Proveri da li je stvarno PNG (a ne HTML sa greškom)
-            content_type = response.headers.get('content-type', '')
+    last_error = ""
+    
+    for url in urls_to_try:
+        try:
+            response = requests.get(url, timeout=30)
             
-            if 'image' in content_type or response.content[:4] == b'\x89PNG':
-                # Sačuvaj PNG
-                png_path = puml_file.with_suffix(".png")
-                png_path.write_bytes(response.content)
-                return 0, ""
-            else:
-                # Možda je greška u HTML formatu
-                error_text = response.text
+            if response.status_code == 200:
+                content = response.content
                 
-                # Probaj da izvučeš tekst greške
-                text_match = re.findall(r'<text[^>]*>(.*?)</text>', error_text, re.DOTALL)
-                if text_match:
-                    return 1, "\n".join(text_match)
-                else:
-                    return 1, "PlantUML server nije vratio validan PNG."
-        
-        else:
-            return 1, f"HTTP greška {response.status_code}"
-            
-    except requests.exceptions.Timeout:
-        return 1, "Vreme za renderovanje je isteklo. Pokušajte ponovo."
+                # Proveri da li je PNG
+                if content[:4] == b'\x89PNG':
+                    png_path = puml_file.with_suffix(".png")
+                    png_path.write_bytes(content)
+                    return 0, ""
+                
+                # Proveri da li je SVG (konvertuj u PNG ne možemo lako, ali možemo SVG sačuvati)
+                if content.startswith(b'<?xml') or content.startswith(b'<svg'):
+                    # Pokušaj da konvertuješ SVG u PNG preko drugog endpointa
+                    svg_url = f"https://www.plantuml.com/plantuml/png/{encoded}"
+                    svg_response = requests.get(svg_url, timeout=30)
+                    if svg_response.status_code == 200 and svg_response.content[:4] == b'\x89PNG':
+                        png_path = puml_file.with_suffix(".png")
+                        png_path.write_bytes(svg_response.content)
+                        return 0, ""
+                    
+                    last_error = "Server je vratio SVG umesto PNG-a"
+                    continue
+                
+                # Ako je HTML sa greškom
+                if b'<html>' in content or b'<text>' in content:
+                    last_error = "PlantUML server je vratio grešku"
+                    continue
+                    
+        except Exception as e:
+            last_error = str(e)
+            continue
     
-    except requests.exceptions.RequestException as e:
-        return 1, f"Greška pri povezivanju sa PlantUML serverom: {str(e)}"
-    
-    except Exception as e:
-        return 1, f"Nepoznata greška: {str(e)}"
+    return 1, f"Render nije uspeo: {last_error}"
