@@ -1,14 +1,19 @@
 ---
-title: Uml Generator
-emoji: 📈
+title: UML Class Diagram Generator
+emoji: 📊
 colorFrom: indigo
 colorTo: blue
-sdk: gradio
-sdk_version: 6.14.0
-python_version: '3.13'
+sdk: streamlit
+sdk_version: 1.37.0
 app_file: app.py
 pinned: false
-license: mit
 ---
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+# UML Class Diagram Generator
+
+Automatsko generisanje PlantUML class dijagrama pomoću Groq API-ja (Qwen/Qwen3-32B).
+
+## Kako koristiti
+1. Unesite opis sistema u tekstualno polje
+2. Kliknite "Generiši dijagram"
+3. Preuzmite PNG ili PlantUML kod
