@@ -17,7 +17,3 @@ py -m streamlit run app.py
 
 Pokretanje kroz CMD:
 py main.py
-
-VAZNO:
-- U config.py upisi svoj Groq API key.
-- plantuml.jar mora biti u tools/plantuml.jar
