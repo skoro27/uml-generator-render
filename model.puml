@@ -1,0 +1,141 @@
+@startuml
+skinparam defaultFontName Arial
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+hide methods
+hide circle
+
+class IzbornaJedinica {
+  id : Integer
+  naziv : String
+  tip : String
+  datum : Date
+  opis : String
+}
+class OsnovnaIzbornaJedinica {
+  id : Integer
+  naziv : String
+  tip : String
+  datum : Date
+  opis : String
+}
+class SlozenaIzbornaJedinica {
+  id : Integer
+  naziv : String
+  tip : String
+  datum : Date
+  opis : String
+}
+class OrganVlasti {
+  id : Integer
+  naziv : String
+  tip : String
+  brojMandata : Integer
+  opis : String
+}
+class Izbor {
+  id : Integer
+  naziv : String
+  tip : String
+  datum : Date
+  opis : String
+}
+class PolitickiSubjekt {
+  id : Integer
+  naziv : String
+  tip : String
+  datumRegistracije : Date
+  opis : String
+}
+class NezavisniKandidat {
+  id : Integer
+  ime : String
+  prezime : String
+  datumRodjenja : Date
+  nacionalnost : String
+}
+class ListaNezavisnihKandidata {
+  id : Integer
+  naziv : String
+  datumKreiranja : Date
+  opis : String
+}
+class PolitickaStranka {
+  id : Integer
+  naziv : String
+  datumOsnivanja : Date
+  opis : String
+}
+class Koalicija {
+  id : Integer
+  naziv : String
+  datumFormiranja : Date
+  opis : String
+}
+class Prijava {
+  id : Integer
+  datumPodnosenja : Date
+  status : String
+  brojPotpisa : Integer
+  opis : String
+}
+class ObrazacPotpisa {
+  id : Integer
+  datum : Date
+  brojPotpisa : Integer
+  odgovornoLice : String
+  opis : String
+}
+class KandidatskaLista {
+  id : Integer
+  naziv : String
+  redniBroj : Integer
+  datumKreiranja : Date
+  opis : String
+}
+class Kandidat {
+  id : Integer
+  ime : String
+  prezime : String
+  datumRodjenja : Date
+  nacionalnost : String
+}
+class BirackiOdbor {
+  id : Integer
+  naziv : String
+  lokacija : String
+  datumFormiranja : Date
+  opis : String
+}
+class Zapisnik {
+  id : Integer
+  datum : Date
+  brojGlasova : Integer
+  opis : String
+}
+
+OsnovnaIzbornaJedinica --|> IzbornaJedinica
+SlozenaIzbornaJedinica --|> IzbornaJedinica
+SlozenaIzbornaJedinica "0..*" -- "1" IzbornaJedinica : sadrzi
+OrganVlasti "1" -- "0..*" IzbornaJedinica : pripada
+OrganVlasti "1" -- "0..*" Prijava : za
+IzbornaJedinica "1" -- "0..*" Prijava : za
+PolitickiSubjekt "1" -- "0..*" Prijava : podnosi
+PolitickiSubjekt "1" -- "0..*" KandidatskaLista : ima
+PolitickiSubjekt "1" -- "0..*" PolitickaStranka : je
+PolitickiSubjekt "1" -- "0..*" Koalicija : je
+PolitickiSubjekt "1" -- "0..*" ListaNezavisnihKandidata : je
+PolitickiSubjekt "1" -- "0..*" NezavisniKandidat : je
+Prijava "1" -- "0..*" ObrazacPotpisa : sadrzi
+KandidatskaLista "1" -- "0..*" Kandidat : sadrzi
+KandidatskaLista "1" -- "0..*" OrganVlasti : za
+KandidatskaLista "1" -- "0..*" IzbornaJedinica : za
+Kandidat "1" -- "0..*" Zapisnik : ostvaruje
+KandidatskaLista "1" -- "0..*" Zapisnik : ostvaruje
+BirackiOdbor "1" -- "0..*" Zapisnik : izdaje
+IzbornaJedinica "1" -- "0..*" Izbor : pripada
+OrganVlasti "1" -- "0..*" Izbor : pripada
+Izbor "1" -- "0..*" Prijava : za
+Izbor "1" -- "0..*" KandidatskaLista : za
+Izbor "1" -- "0..*" Zapisnik : za
+@enduml
