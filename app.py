@@ -26,7 +26,7 @@ st.set_page_config(
 )
 
 st.title("📊 LLM PlantUML Generator")
-st.caption("BAZE PODATAKA II ciklus")
+st.caption("BAZE PODATAKA II ciklus Slaviša Škorić")
 st.write("Generisanje PlantUML dijagrama klasa pomoću Groq API-ja (Qwen/Qwen3-32B).")
 
 description = st.text_area(
