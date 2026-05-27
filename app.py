@@ -5,6 +5,7 @@ from config import PUML_FILE, GROQ_API_KEY
 from generator import generate_puml
 from renderer import run_plantuml
 from evaluation import evaluate_puml
+from sql_generator import generate_sql_from_puml
 
 # Provjera API ključa na samom početku
 if not GROQ_API_KEY:
@@ -72,7 +73,7 @@ if st.button("✨ Generiši dijagram", type="primary"):
         with col1:
             st.subheader("📊 Generisani dijagram")
             if png_path.exists():
-                                st.image(str(png_path), use_column_width=True)
+                st.image(str(png_path), use_column_width=True)
             else:
                 st.error("PNG fajl nije kreiran.")
 
@@ -84,7 +85,7 @@ if st.button("✨ Generiši dijagram", type="primary"):
         st.subheader("📝 PlantUML kod")
         st.code(puml, language="text")
 
-        # Download dugmići
+        # Download dugmići za UML
         col_dl1, col_dl2 = st.columns(2)
         
         with col_dl1:
@@ -106,6 +107,31 @@ if st.button("✨ Generiši dijagram", type="primary"):
                 mime="text/plain",
                 use_container_width=True
             )
+
+        # SQL sekcija
+        st.divider()
+        st.subheader("🗄️ SQL kod za kreiranje baze")
+        
+        try:
+            sql_code = generate_sql_from_puml(puml)
+            st.code(sql_code, language="sql")
+            
+            # Download dugme za SQL
+            st.download_button(
+                label="📥 Preuzmi SQL kod",
+                data=sql_code,
+                file_name="schema.sql",
+                mime="text/plain",
+                use_container_width=True
+            )
+        except Exception as sql_e:
+            st.warning(f"⚠️ Nije moguće automatski generisati SQL: {str(sql_e)}")
+            with st.expander("🔍 Zašto?"):
+                st.write("""
+                SQL generisanje parsira PlantUML kod. Ako PlantUML sadrži 
+                neočekivane formate ili greške, parser ne može da izvuče 
+                informacije o klasama i relacijama.
+                """)
 
     except Exception as e:
         st.error(f"💥 Došlo je do greške: {str(e)}")
