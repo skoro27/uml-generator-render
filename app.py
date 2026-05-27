@@ -6,7 +6,7 @@ from generator import generate_puml
 from renderer import run_plantuml
 from evaluation import evaluate_puml
 
-# Provera API ključa na samom početku
+# Provjera API ključa na samom početku
 if not GROQ_API_KEY:
     st.error("🚨 **GROQ_API_KEY nije podešen!**")
     st.info("""
@@ -26,13 +26,13 @@ st.set_page_config(
 )
 
 st.title("📊 LLM PlantUML Generator")
-st.caption("BAZE PODATAKA II ciklus Slaviša Škorić")
-st.write("Generisanje PlantUML dijagrama klasa pomoću Groq API-ja (Qwen/Qwen3-32B).")
+st.caption("BAZE PODATAKA II ciklus [Slaviša Škorić]")
+st.write("Generisanje PlantUML dijagrama klasa pomoću Groq API-ja (Qwen3-32B).")
 
 description = st.text_area(
     "Unesite opis sistema:",
     height=260,
-    placeholder="Npr: Sistem za upravljanje bibliotekom ima klase Knjiga, Clan, Pozajmica..."
+    placeholder="Npr: Sistem za upravljanje bibliotekom ima klase Knjiga, Član, Pozajmica..."
 )
 
 if st.button("✨ Generiši dijagram", type="primary"):
