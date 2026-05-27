@@ -57,7 +57,6 @@ if st.button("✨ Generiši dijagram", type="primary"):
                 st.error("❌ PlantUML render nije uspio.")
                 st.code(err, language="text")
                 
-                # I pored greške, prikaži generisani kod da korisnik može da vidi šta nije u redu
                 with st.expander("🔍 Generisani PlantUML kod (sadrži greške)"):
                     st.code(puml, language="text")
                 st.stop()
@@ -67,7 +66,11 @@ if st.button("✨ Generiši dijagram", type="primary"):
             
             # Evaluacija
             evaluation = evaluate_puml(puml, True)
+            
+            # Generiši SQL
+            sql_code = generate_sql_from_puml(puml)
 
+        # Dijagram i evaluacija
         col1, col2 = st.columns([2, 1])
 
         with col1:
@@ -82,17 +85,27 @@ if st.button("✨ Generiši dijagram", type="primary"):
             st.json(evaluation)
 
         st.divider()
-        st.subheader("📝 PlantUML kod")
-        st.code(puml, language="text")
 
-        # Download dugmići za UML
-        col_dl1, col_dl2 = st.columns(2)
+        # PlantUML i SQL kod jedan pored drugog
+        col_code1, col_code2 = st.columns(2)
+
+        with col_code1:
+            st.subheader("📝 PlantUML kod")
+            st.code(puml, language="text")
+
+        with col_code2:
+            st.subheader("🗄️ SQL kod")
+            st.code(sql_code, language="sql")
+
+        # Download dugmići
+        st.divider()
+        col_dl1, col_dl2, col_dl3 = st.columns(3)
         
         with col_dl1:
             if png_path.exists():
                 with open(png_path, "rb") as f:
                     st.download_button(
-                        label="🖼️ Preuzmi PNG dijagram",
+                        label="🖼️ Preuzmi PNG",
                         data=f,
                         file_name="model.png",
                         mime="image/png",
@@ -101,37 +114,21 @@ if st.button("✨ Generiši dijagram", type="primary"):
 
         with col_dl2:
             st.download_button(
-                label="📄 Preuzmi PlantUML kod",
+                label="📄 Preuzmi PlantUML",
                 data=puml,
                 file_name="model.puml",
                 mime="text/plain",
                 use_container_width=True
             )
 
-        # SQL sekcija
-        st.divider()
-        st.subheader("🗄️ SQL kod za kreiranje baze")
-        
-        try:
-            sql_code = generate_sql_from_puml(puml)
-            st.code(sql_code, language="sql")
-            
-            # Download dugme za SQL
+        with col_dl3:
             st.download_button(
-                label="📥 Preuzmi SQL kod",
+                label="📥 Preuzmi SQL",
                 data=sql_code,
                 file_name="schema.sql",
                 mime="text/plain",
                 use_container_width=True
             )
-        except Exception as sql_e:
-            st.warning(f"⚠️ Nije moguće automatski generisati SQL: {str(sql_e)}")
-            with st.expander("🔍 Zašto?"):
-                st.write("""
-                SQL generisanje parsira PlantUML kod. Ako PlantUML sadrži 
-                neočekivane formate ili greške, parser ne može da izvuče 
-                informacije o klasama i relacijama.
-                """)
 
     except Exception as e:
         st.error(f"💥 Došlo je do greške: {str(e)}")
