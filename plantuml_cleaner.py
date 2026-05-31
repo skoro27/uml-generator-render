@@ -258,6 +258,8 @@ def fix_relations(puml: str) -> str:
 
     for line in puml.splitlines():
         line = line.replace('"0.."', '"0..*"')
+        # Popravi dupli -- (npr. "1" -- "1" -- Klasa → "1" -- "1" Klasa)
+        line = re.sub(r'("\S+")\s+(--|-->)\s+("\S+")\s+(--|-->)\s+', r'\1 \2 \3 ', line)
 
         # Slučaj 1: Relacija gde je desni entitet POSLE labele sa >
         m = re.match(
