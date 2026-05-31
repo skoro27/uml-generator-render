@@ -43,29 +43,33 @@ skinparam linetype ortho
 hide methods
 hide circle
 
-class Osoba {
+class Osoba {{
   id : Integer
   ime : String
   prezime : String
-}
-class Student {
+}}
+
+class Student {{
   id : Integer
   indeks : String
-}
-class Profesor {
+}}
+
+class Profesor {{
   id : Integer
   zvanje : String
-}
-class Predmet {
+}}
+
+class Predmet {{
   id : Integer
   naziv : String
   espb : Integer
-}
-class Ispit {
+}}
+
+class Ispit {{
   id : Integer
   datum : Date
   ocena : Integer
-}
+}}
 
 Student --|> Osoba
 Profesor --|> Osoba
