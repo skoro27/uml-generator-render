@@ -1,75 +1,98 @@
-# ---------------- PROMPTI ----------------
-
 PROMPT_TEMPLATE = """Ti si ekspert za konceptualno modelovanje baza podataka i UML class dijagrame.
 Generisi DETALJAN PlantUML dijagram KLASA koji predstavlja konceptualni/relacioni model baze podataka.
 
-VRATI ISKLJUCIVO PlantUML kod izmedju @startuml i @enduml.
+VRATI ISKLJUCIVO PlantUML kod izmedju @startuml i @enduml. NIKAKVA objasnjenja, NIKAKAV markdown, NIKAKVE napomene pre ili posle koda.
 
-OBAVEZNO:
-- Identifikuj sve vazne entitete iz opisa.
-- Broj klasa odredi prema opisu sistema; ne izmisljaj nepotrebne klase.
-- Ne svodi model samo na glavne 3-4 klase.
-- Ukljuci sve bitne klase koje se pojavljuju u opisu.
-- Atributi moraju biti prosti tipovi: String, Integer, Date.
-- Dodaj atribut id : Integer u svaku klasu.
-- Dodaj osnovne atribute kao naziv, datum, tip, broj, opis gdje imaju smisla.
-- Ne koristi metode.
-- Ne koristi liste.
-- Ne koristi dijakritiku.
-- Koristi ASCII slova.
+PRAVILA KOJA MORAS POSTOVATI:
 
-NASLJEDJIVANJE:
-- Koristi nasljedjivanje kada u opisu postoje tipovi/podtipovi.
-- Nasljedjivanje pisi iskljucivo PlantUML sintaksom:
-  Dijete --|> Roditelj.
-- Nikada ne koristi rijec extends u nazivima klasa.
-- Nazivi klasa moraju biti kratki i cisti.
+1. KLASE:
+- Identifikuj SVE entitete iz opisa (ne samo 3-4 glavne).
+- Svaka klasa MORA imati id : Integer.
+- Atributi samo prosti tipovi: String, Integer, Date.
+- Imena klasa: veliko pocetno slovo, bez dijakritike, bez razmaka (npr. IzbornaKomisija, ne "Izborna komisija").
+- Ne koristi metode, liste, niti slozene tipove.
 
-RELACIJE:
-- Relacije pisi VAN klasa.
-- Obavezno koristi kardinalnosti "1", "0..*", "1..*" u svim relacijama.
-- Ako postoji veza vise-na-vise, napravi veznu klasu.
-- Ako postoji hijerarhija istih elemenata, koristi rekurzivnu relaciju.
-- Ne ubacuj relacije unutar class blokova.
+2. NASLJEDJIVANJE (OBAVEZNO ako opis spominje tipove/podtipove):
+- SINTAKSA: Dijete --|> Roditelj
+- Primer: Ako opis kaze "Centralna izborna komisija je izborna komisija", pisi: CentralnaIzbornaKomisija --|> IzbornaKomisija
+- Primer: Ako opis kaze "biracki odbori (BO) i izborne komisije (IK) su organi", pisi:
+  BirackiOdbor --|> Organ
+  IzbornaKomisija --|> Organ
+- NIKADA ne koristi rec "extends" u imenima klasa.
+- Klase koje nasledjuju NE ponavljaju atribute roditelja (oni su nasledjeni).
 
-PRIMJER ISPRAVNOG FORMATA:
+3. RELACIJE (VAN klasa, POSLE svih definicija klasa):
+- SVAKA relacija MORA imati kardinalnost: "1", "0..*", "1..*", "0..1"
+- Format: KlasaA "kard1" -- "kard2" KlasaB : opis
+- Primer: Organ "1" -- "1..*" Clan : ima
+- Ako opis kaze "X ima Y", to je relacija: X "1" -- "0..*" Y : ima
+- Ako opis kaze "X imenuje Y", to je relacija: X "1" -- "0..*" Y : imenuje
+- Za many-to-many, kreiraj posebnu veznu klasu (npr. Clanstvo).
+
+4. KONZISTENTNOST (NAJVAZNIJE):
+- Svaka klasa koja se pojavljuje u relaciji MORA biti prethodno definisana.
+- Proveri da li sve klase iz relacija postoje u definicijama.
+- Ne koristi skracenice u relacijama ako klasa ima puno ime.
+
+PRIMER ISPRAVNOG UML-a:
+
 @startuml
 skinparam defaultFontName Arial
 skinparam classAttributeIconSize 0
 skinparam linetype ortho
+hide methods
+hide circle
 
-class EntitetA {{
+class Osoba {
+  id : Integer
+  ime : String
+  prezime : String
+}
+class Student {
+  id : Integer
+  indeks : String
+}
+class Profesor {
+  id : Integer
+  zvanje : String
+}
+class Predmet {
   id : Integer
   naziv : String
-}}
-
-class EntitetB {{
+  espb : Integer
+}
+class Ispit {
   id : Integer
   datum : Date
-}}
+  ocena : Integer
+}
 
-class EntitetC {{
-  id : Integer
-  tip : String
-}}
-
-EntitetB --|> EntitetA
-EntitetA "1" -- "0..*" EntitetC : sadrzi
-EntitetB "1" -- "1..*" EntitetC : koristi
+Student --|> Osoba
+Profesor --|> Osoba
+Student "1" -- "0..*" Ispit : polaze
+Predmet "1" -- "0..*" Ispit : ima
+Profesor "1" -- "0..*" Predmet : predaje
 
 @enduml
 
-OPIS:
+OPIS SISTEMA ZA MODELOVANJE:
 {description}
 """
 
-REPAIR_PROMPT_TEMPLATE = """Popravi PlantUML da bude validan.
-Ne mijenjaj domenu, samo ispravi sintaksu.
-Vrati samo @startuml ... @enduml.
+REPAIR_PROMPT_TEMPLATE = """Popravi PlantUML dijagram da bude validan PlantUML kod.
 
-ORIGINAL:
+PRAVILA:
+- Ne menjaj koncepte, klase i atribute iz originala.
+- Samo ispravi sintaksne greske.
+- OBAVEZNO dodaj @startuml na pocetak i @enduml na kraj.
+- Ako fale relacije ili nasledjivanje koje je ocigledno iz imena klasa, dodaj ih.
+- Ako se u relacijama koriste klase koje nisu definisane, ili ih definisi ili prepravi relacije.
+- Imena klasa pisi bez razmaka (npr. IzbornaKomisija, ne Izborna komisija).
+- Vrati SAMO PlantUML kod, bez ikakvih objasnjenja.
+
+ORIGINAL (sa greskom):
 {puml}
 
-PLANTUML ERROR:
+PLANTUML GRESKA:
 {error}
 """
