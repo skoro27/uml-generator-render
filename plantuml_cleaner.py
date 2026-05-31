@@ -260,8 +260,6 @@ def fix_relations(puml: str) -> str:
         line = line.replace('"0.."', '"0..*"')
 
         # Slučaj 1: Relacija gde je desni entitet POSLE labele sa >
-        # Primer: Osoba "1" -- "1" : ima > Prebivaliste
-        # Rezultat: Osoba "1" -- "1" Prebivaliste : ima
         m = re.match(
             r'^\s*(\w+)\s+"([^"]+)"\s+(--|-->|<--|\*--|o--)'
             r'\s+"([^"]+)"\s*:\s*(.*?)\s*>\s*(\w+)\s*$',
@@ -274,10 +272,6 @@ def fix_relations(puml: str) -> str:
             continue
 
         # Slučaj 2: Relacija gde je entitet u labeli sa :
-        # Primer: IzbornaKomisija "1" -- "1" : CIK
-        # Rezultat: IzbornaKomisija "1" -- "1" CIK
-        # ili: IzbornaKomisija "1" -- "1" : CIK : nekiOpis
-        # Rezultat: IzbornaKomisija "1" -- "1" CIK : nekiOpis
         m = re.match(
             r'^\s*(\w+)\s+"([^"]+)"\s+(--|-->|<--|\*--|o--)'
             r'\s+"([^"]+)"\s*:\s*(\w+)\s*(?::\s*(.*))?$',
@@ -293,8 +287,6 @@ def fix_relations(puml: str) -> str:
             continue
 
         # Slučaj 3: Obrnut redosled kardinalnosti
-        # Primer: Osoba "1" -- Prebivaliste "0..*"
-        # Rezultat: Osoba "1" -- "0..*" Prebivaliste
         m = re.match(
             r'^\s*(\w+)\s+"([^"]+)"\s+(--|-->|<--|\*--|o--)'
             r'\s+(\w+)\s+"([^"]+)"\s*(?::\s*(.*))?$',
@@ -316,7 +308,6 @@ def fix_relations(puml: str) -> str:
             continue
 
         # Slučaj 4: Već ispravan format relacije sa kardinalnostima
-        # Primer: Osoba "1" -- "0..*" Prebivaliste : ima
         m = re.match(
             r'^\s*(\w+)\s+"([^"]+)"\s+(--|-->|<--|\*--|o--)'
             r'\s+"([^"]+)"\s+(\w+)\s*(?::\s*(.*))?$',
@@ -339,6 +330,19 @@ def fix_relations(puml: str) -> str:
 
         lines.append(line)
 
+    return "\n".join(lines)
+
+
+def mark_primary_keys(puml: str) -> str:
+    """Dodaje {PK} stereotip na id : Integer atribut u svakoj klasi."""
+    import re
+    
+    lines = []
+    for line in puml.splitlines():
+        if re.match(r'^\s+id\s*:\s*Integer', line):
+            line = re.sub(r'^(\s+)(id\s*:\s*Integer)', r'\1{PK} \2', line)
+        lines.append(line)
+    
     return "\n".join(lines)
 
 
@@ -432,9 +436,12 @@ def sanitize_puml(puml: str) -> str:
     # Korekcija atributa
     puml = fix_attributes(puml)
 
-    # Korekcija relacija (redosled je važan!)
-    puml = fix_missing_entity_in_relation(puml)  # Prvo popravljamo nedostajuće entitete
-    puml = fix_relations(puml)  # Zatim ostale probleme sa relacijama
+    # Dodaj {PK} oznake PRE korekcije relacija
+    puml = mark_primary_keys(puml)
+
+    # Korekcija relacija
+    puml = fix_missing_entity_in_relation(puml)
+    puml = fix_relations(puml)
 
     # Finalna reorganizacija
     puml = rebuild_order(puml)
