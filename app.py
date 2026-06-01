@@ -117,8 +117,8 @@ if st.button("✨ Generiši dijagram", type="primary"):
         with col1:
             st.subheader("📊 Generisani dijagram")
             if png_path.exists():
-                st.image(str(png_path), use_column_width=True)
-            else:
+                st.image(str(png_path), use_container_width=True)
+                            else:
                 st.error("PNG fajl nije kreiran.")
 
         with col2:
