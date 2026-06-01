@@ -1,6 +1,5 @@
 import streamlit as st
 import os
-import time
 
 from config import PUML_FILE, GROQ_API_KEY
 from generator import generate_puml
@@ -44,72 +43,32 @@ if st.button("✨ Generiši dijagram", type="primary"):
         st.stop()
 
     try:
-        # Kreiraj placeholdere za progress
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        # Korak 1: Generisanje PlantUML koda (0-40%)
-        status_text.text("🧠 Generisanje PlantUML koda...")
-        for i in range(1, 6):
-            progress_bar.progress(i * 4)
-            time.sleep(0.1)
-        
-        puml = generate_puml(description)
-        progress_bar.progress(30)
-        
-        # Korak 2: Sanitizacija (30-40%)
-        status_text.text("🔧 Sanitizacija i optimizacija PlantUML koda...")
-        for i in range(6, 9):
-            progress_bar.progress(i * 5)
-            time.sleep(0.1)
-        
-        PUML_FILE.write_text(puml, encoding="utf-8")
-        progress_bar.progress(40)
-        
-        # Korak 3: Renderovanje (40-70%)
-        status_text.text("🎨 Renderovanje dijagrama u PNG...")
-        for i in range(8, 13):
-            progress_bar.progress(i * 5)
-            time.sleep(0.1)
-        
-        code, err = run_plantuml(PUML_FILE)
-        progress_bar.progress(70)
+        with st.spinner("🧠 Generišem PlantUML model... Ovo može potrajati 10-20 sekundi."):
+            # Generiši PlantUML kod
+            puml = generate_puml(description)
 
-        if code != 0:
-            progress_bar.empty()
-            status_text.empty()
-            st.error("❌ PlantUML render nije uspio.")
-            st.code(err, language="text")
+            # Sačuvaj u fajl (potrebno za renderer)
+            PUML_FILE.write_text(puml, encoding="utf-8")
+
+            # Renderuj u PNG
+            code, err = run_plantuml(PUML_FILE)
+
+            if code != 0:
+                st.error("❌ PlantUML render nije uspio.")
+                st.code(err, language="text")
+                
+                with st.expander("🔍 Generisani PlantUML kod (sadrži greške)"):
+                    st.code(puml, language="text")
+                st.stop()
+
+            # Putanja do PNG fajla
+            png_path = PUML_FILE.with_suffix(".png")
             
-            with st.expander("🔍 Generisani PlantUML kod (sadrži greške)"):
-                st.code(puml, language="text")
-            st.stop()
-
-        png_path = PUML_FILE.with_suffix(".png")
-        
-        # Korak 4: SQL generisanje (70-85%)
-        status_text.text("🗄️ Generisanje SQL koda za kreiranje baze...")
-        for i in range(14, 17):
-            progress_bar.progress(i * 5)
-            time.sleep(0.1)
-        
-        sql_code = generate_sql_from_puml(puml)
-        progress_bar.progress(85)
-        
-        # Korak 5: Evaluacija (85-100%)
-        status_text.text("📊 Evaluacija generisanog modela...")
-        for i in range(17, 21):
-            progress_bar.progress(i * 5)
-            time.sleep(0.1)
-        
-        evaluation = evaluate_puml(puml, True)
-        progress_bar.progress(100)
-        status_text.text("✅ Generisanje završeno!")
-        time.sleep(0.5)
-        
-        # Očisti progress
-        progress_bar.empty()
-        status_text.empty()
+            # Evaluacija
+            evaluation = evaluate_puml(puml, True)
+            
+            # Generiši SQL
+            sql_code = generate_sql_from_puml(puml)
 
         # Dijagram i evaluacija
         col1, col2 = st.columns([2, 1])
@@ -118,7 +77,7 @@ if st.button("✨ Generiši dijagram", type="primary"):
             st.subheader("📊 Generisani dijagram")
             if png_path.exists():
                 st.image(str(png_path), use_container_width=True)
-                            else:
+            else:
                 st.error("PNG fajl nije kreiran.")
 
         with col2:
@@ -177,3 +136,6 @@ if st.button("✨ Generiši dijagram", type="primary"):
         with st.expander("🔧 Detalji greške (za debagovanje)"):
             import traceback
             st.code(traceback.format_exc(), language="text")
+
+
+
