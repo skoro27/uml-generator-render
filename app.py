@@ -52,8 +52,6 @@ with st.sidebar:
         - `0..*` = nula ili više
         - `1..*` = bar jedan
         """)
-    with st.expander("🟢🟡🔴 Semafor"):
-        st.write("Vizuelna ocjena: zeleno = dobro, žuto = osrednje, crveno = loše")
     st.divider()
     st.caption("📌 v2.0 | Groq API | Qwen3-32B")
 
@@ -283,7 +281,7 @@ if st.button("✨ Generiši dijagram", type="primary"):
                 <tr style="background-color:#f0f0f0;">
                     <th style="text-align:left; padding:5px;">Oznaka</th>
                     <th style="text-align:left; padding:5px;">Naziv</th>
-                    <th style="text-align:center; padding:5px;">Značenje</th>
+                    <th style="text-align:left; padding:5px;">Značenje</th>
                     <th style="text-align:center; padding:5px;">Broj</th>
                     <th style="text-align:center; padding:5px;">Status</th>
                 </tr>
