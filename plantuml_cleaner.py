@@ -1,7 +1,7 @@
 def mark_primary_keys(puml: str) -> str:
     """
-    Umjesto dodavanja {PK}, ova funkcija sada provjerava da li postoji 
-    ispravna PK operacija. Ako ne postoji, dodaje je.
+    Provjerava da li postoji ispravna PK operacija.
+    Ako ne postoji, ali postoje id atributi, ostavlja postprocessoru da to riješi.
     """
     import re
     
@@ -15,7 +15,7 @@ def mark_primary_keys(puml: str) -> str:
         if class_start:
             # Završi prethodnu klasu
             if inside_class and current_class:
-                lines.extend(_process_class_no_pk(class_body, current_class))
+                lines.extend(_process_class_body(class_body))
             current_class = class_start.group(2)
             inside_class = True
             class_body = []
@@ -23,7 +23,7 @@ def mark_primary_keys(puml: str) -> str:
             continue
         
         if inside_class and line.strip() == "}":
-            lines.extend(_process_class_no_pk(class_body, current_class))
+            lines.extend(_process_class_body(class_body))
             lines.append(line)
             current_class = None
             inside_class = False
@@ -36,31 +36,25 @@ def mark_primary_keys(puml: str) -> str:
     
     # Zadnja klasa
     if inside_class and current_class:
-        lines.extend(_process_class_no_pk(class_body, current_class))
+        lines.extend(_process_class_body(class_body))
         lines.append("}")
     
     return "\n".join(lines)
 
 
-def _process_class_no_pk(body_lines, class_name):
-    """Procesuira klasu BEZ dodavanja {PK} oznaka."""
+def _process_class_body(body_lines):
+    """
+    Procesuira tijelo klase.
+    Samo uklanja {PK} oznake ako postoje, ali NE dodaje nove.
+    """
     result = []
-    has_pk_operation = False
-    pk_attributes = []
     
     for line in body_lines:
-        # Provjeri da li već postoji PK operacija
-        if re.match(r'^\s*PK\s*\(', line):
-            has_pk_operation = True
-            result.append(line)
-            continue
+        # Ukloni {PK} oznake ako postoje (ne dodajemo nove)
+        if '{PK}' in line:
+            line = re.sub(r'\{\s*PK\s*\}\s*', '', line)
         
-        # Ako nije PK operacija, samo zadrži liniju
+        # Zadrži sve ostale linije (uključujući PK operacije ako postoje)
         result.append(line)
-    
-    # Ako nema PK operacije, dodaj upozorenje (ne dodajemo {PK}!)
-    if not has_pk_operation:
-        # Ne dodajemo ništa - prepuštamo postprocessor.py da doda PK operaciju
-        pass
     
     return result
