@@ -1,68 +1,96 @@
-import json
+import os
+import re
+from groq import Groq
+from config import GROQ_API_KEY
 
-import config
-from prompts import PROMPT_TEMPLATE, REPAIR_PROMPT_TEMPLATE
-from llm_clients import call_llm
-from plantuml_cleaner import sanitize_puml
-from renderer import run_plantuml
-from evaluation import evaluate_puml
-
+client = Groq(api_key=GROQ_API_KEY)
 
 def generate_puml(description: str) -> str:
-    """Generise PlantUML iz tekstualnog opisa."""
-    prompt = PROMPT_TEMPLATE.format(description=description.strip())
-    raw = call_llm(prompt)
+    """Generiše PlantUML klasni dijagram na osnovu opisa sistema."""
+    
+    prompt = f"""
+Ti si ekspert za UML dijagrame klasa. Generiši PlantUML kod na osnovu sljedećeg opisa sistema.
 
-    config.RAW_PUML_FILE.write_text(raw, encoding="utf-8")
+**OPIS SISTEMA:**
+{description}
 
-    return sanitize_puml(raw)
+**PRAVILA KOJA SE MORAJU POŠTOVATI (KRITIČNO VAŽNO!):**
 
+1. **Primarni ključ (PK) se NE piše kao atribut sa oznakom {{PK}}!**
+   
+   ❌ LOŠE:
+   class Osoba {{
+     {{PK}} id : Integer
+     ime : String
+   }}
+   
+   ✅ DOBRO:
+   class Osoba {{
+     PK(id : Integer)
+     ime : String
+   }}
+   
+   Ako PK ima više atributa:
+   class Racun {{
+     PK(broj : Integer, godina : Integer)
+     stanje : Double
+   }}
 
-def repair_puml(puml: str, error: str) -> str:
-    """Pokusava LLM repair ako PlantUML render ne prodje."""
-    prompt = REPAIR_PROMPT_TEMPLATE.format(
-        puml=puml,
-        error=error[:2000]
-    )
+2. **POTKLASE NE NASLJEĐUJU PK od natklase!**
+   
+   ❌ LOŠE (Zaposleni ponovo ima id):
+   class Osoba {{
+     PK(id : Integer)
+     ime : String
+   }}
+   class Zaposleni {{
+     PK(id : Integer)  ← OVO JE ZABRANJENO!
+     plata : Double
+   }}
+   Osoba <|-- Zaposleni
+   
+   ✅ DOBRO (Zaposleni NEMA PK):
+   class Osoba {{
+     PK(id : Integer)
+     ime : String
+   }}
+   class Zaposleni {{
+     plata : Double
+     radnoMjesto : String
+   }}
+   Osoba <|-- Zaposleni
 
-    raw = call_llm(prompt)
-    return sanitize_puml(raw)
+3. **Generalizacija (nasljeđivanje) se piše:** `Natklasa <|-- Potklasa`
 
+4. **Asocijacije sa kardinalnostima:**
+   `KlasaA "1" -- "0..*" KlasaB : nazivVeze`
 
-def generate_render_evaluate(description: str) -> tuple[str, dict, str]:
-    """
-    Kompletan tok:
-    opis -> PlantUML -> PNG -> evaluacija.
+5. **Obavezno koristi @startuml i @enduml.**
 
-    Vraca:
-    - puml kod
-    - evaluation dict
-    - putanju do PNG fajla
-    """
-    puml = generate_puml(description)
-    config.PUML_FILE.write_text(puml, encoding="utf-8")
+6. **Svi atributi i operacije moraju imati tip podatka (String, Integer, Boolean, Date...)**
 
-    code, err = run_plantuml(config.PUML_FILE)
-
-    if code != 0:
-        fixed = repair_puml(puml, err)
-        config.FIXED_PUML_FILE.write_text(fixed, encoding="utf-8")
-        config.PUML_FILE.write_text(fixed, encoding="utf-8")
-
-        code, err = run_plantuml(config.PUML_FILE)
-
-        if code != 0:
-            evaluation = evaluate_puml(fixed, False)
-            raise RuntimeError(
-                "PlantUML render nije uspio ni nakon repair.\n\n"
-                + err
-                + "\n\nEvaluacija:\n"
-                + json.dumps(evaluation, indent=2, ensure_ascii=False)
-            )
-
-        puml = fixed
-
-    evaluation = evaluate_puml(puml, True)
-    png_path = str(config.PUML_FILE.with_suffix(".png"))
-
-    return puml, evaluation, png_path
+**Generiši SAMO PlantUML kod, bez dodatnih objašnjenja.**
+"""
+    
+    try:
+        response = client.chat.completions.create(
+            model="qwen-2.5-32b",
+            messages=[
+                {"role": "system", "content": "Ti si ekspert za UML i PlantUML. Generišeš samo PlantUML kod, bez objašnjenja."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.1,
+            max_tokens=4000
+        )
+        
+        puml_code = response.choices[0].message.content
+        
+        # Očisti kod ako ima markdown formatiranja
+        puml_code = re.sub(r'^```plantuml\n?', '', puml_code, flags=re.MULTILINE)
+        puml_code = re.sub(r'^```\n?', '', puml_code, flags=re.MULTILINE)
+        puml_code = puml_code.strip()
+        
+        return puml_code
+        
+    except Exception as e:
+        raise Exception(f"Greška pri generisanju PlantUML koda: {str(e)}")
