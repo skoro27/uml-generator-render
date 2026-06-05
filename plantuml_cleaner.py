@@ -270,3 +270,119 @@ def fix_relations(puml: str) -> str:
         m = re.match(
             r'^\s*(\w+)\s+"([^"]+)"\s+(--|-->|<--|\*--|o--)'
             r'\s+(\w+)\s+"([^"]+)"\s*(?::\s*(.*))?$',
+            line
+        )
+        if m:
+            left, left_card, arrow, right, right_card, label = m.groups()
+            if label:
+                line = f'{left} "{left_card}" {arrow} "{right_card}" {right} : {label}'
+            else:
+                line = f'{left} "{left_card}" {arrow} "{right_card}" {right}'
+            lines.append(line)
+            continue
+
+        m = re.match(
+            r'^\s*(\w+)\s+"([^"]+)"\s+(--|-->|<--|\*--|o--)'
+            r'\s+"([^"]+)"\s+(\w+)\s*(?::\s*(.*))?$',
+            line
+        )
+        if m:
+            left, left_card, arrow, right_card, right, label = m.groups()
+            if label:
+                line = f'{left} "{left_card}" {arrow} "{right_card}" {right} : {label}'
+            else:
+                line = f'{left} "{left_card}" {arrow} "{right_card}" {right}'
+            lines.append(line)
+            continue
+
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
+def rebuild_order(puml: str) -> str:
+    """Reorganizuje PlantUML kod u pravilan redosled."""
+    blocks = []
+    relations = []
+    others = []
+    in_block = False
+    current = []
+
+    for line in puml.splitlines():
+        s = line.strip()
+
+        if s in ["@startuml", "@enduml"]:
+            continue
+
+        if s.startswith("skinparam"):
+            continue
+
+        if re.match(r"^\s*(class|enum|interface)\s+\w+\s*\{", line):
+            in_block = True
+            current = [line]
+            continue
+
+        if in_block:
+            current.append(line)
+
+            if s == "}":
+                blocks.append("\n".join(current))
+                in_block = False
+
+            continue
+
+        if any(x in s for x in ["--", "-->", "<--", "*--", "o--"]):
+            relations.append(line)
+        else:
+            if s:
+                others.append(line)
+
+    final = [
+        "@startuml",
+        "skinparam defaultFontName Arial",
+        "skinparam classAttributeIconSize 0",
+        "skinparam linetype ortho",
+        "hide methods",
+        "hide circle",
+        ""
+    ]
+
+    final.extend(blocks)
+
+    if relations:
+        final.append("")
+        final.extend(relations)
+
+    if others:
+        final.append("")
+        final.extend(others)
+
+    final.append("@enduml")
+
+    return "\n".join(final)
+
+
+def sanitize_puml(puml: str) -> str:
+    """Glavna funkcija za sanitizaciju PlantUML koda."""
+    puml = re.sub(r"(\w+)extends(\w+)", r"\1 --|> \2", puml)
+
+    puml = extract_plantuml(puml)
+    puml = ensure_header(puml)
+
+    puml = normalize_classes(puml)
+    puml = move_relations_outside_classes(puml)
+
+    puml = fix_attributes(puml)
+
+    puml = fix_missing_entity_in_relation(puml)
+    puml = fix_relations(puml)
+
+    # Postprocesiranje: PK operacije i uklanjanje naslijeđenih PK
+    puml, warnings = validate_and_fix_puml(puml)
+
+    puml = rebuild_order(puml)
+
+    if "class " not in puml:
+        raise ValueError("Nema class definicija u PlantUML kodu.")
+
+    return puml.strip()
