@@ -14,7 +14,6 @@ def extract_plantuml(text: str) -> str:
     if start != -1 and end != -1:
         return text[start:end + len("@enduml")].strip()
 
-    # Ako nema @startuml/@enduml, pokušavamo da prepoznamo PlantUML linije
     plant_lines = []
 
     for line in text.splitlines():
@@ -47,7 +46,6 @@ def extract_plantuml(text: str) -> str:
             + "\n@enduml"
         )
 
-    # Ako ništa ne uspe, sačuvaj u debug fajl
     config.DEBUG_FILE.write_text(text, encoding="utf-8")
 
     raise ValueError(
@@ -140,13 +138,11 @@ def fix_attributes(puml: str) -> str:
     for line in puml.splitlines():
         s = line.strip()
 
-        # Detektujemo ulazak u klasu
         if re.match(r"^\s*(class|enum|interface)\s+\w+\s*\{", line):
             in_class = True
             output.append(line)
             continue
 
-        # Detektujemo izlazak iz klase
         if in_class and s == "}":
             in_class = False
             output.append(line)
@@ -156,15 +152,12 @@ def fix_attributes(puml: str) -> str:
             if not s:
                 continue
 
-            # Preskačemo metode (sadrže zagrade)
             if "(" in s and ")" in s:
                 continue
 
-            # Preskačemo generičke tipove i nizove
             if "<" in s or ">" in s or "[]" in s:
                 continue
 
-            # Obrada atributa sa dvotačkom
             if ":" in s:
                 m = re.match(r"^([A-Za-z_]\w*)\s*:\s*([A-Za-z_]\w*)$", s)
                 if m:
@@ -177,7 +170,6 @@ def fix_attributes(puml: str) -> str:
 
                 continue
 
-            # Obrada obrnutog formata: Tip Atribut
             m = re.match(r"^(String|Integer|Date)\s+([A-Za-z_]\w*)$", s)
             if m:
                 typ = m.group(1)
@@ -202,40 +194,31 @@ def move_relations_outside_classes(puml: str) -> str:
     for line in lines:
         s = line.strip()
 
-        # Detektujemo početak klase
         if re.match(r"^\s*(class|enum|interface)\s+\w+\s*\{", line):
             in_class = True
             output.append(line)
             continue
 
-        # Detektujemo kraj klase
         if in_class and s == "}":
             in_class = False
             output.append(line)
             continue
 
-        # Ako smo unutar klase i naiđemo na relaciju, izdvajamo je
         if in_class and any(x in s for x in ["--", "-->", "<--", "*--", "o--"]):
             relations.append(s)
             continue
 
         output.append(line)
 
-    # Dodajemo relacije na kraj
     output.extend(relations)
     return "\n".join(output)
 
 
 def fix_missing_entity_in_relation(puml: str) -> str:
-    """
-    Dodatna korekcija za slučajeve gde desni entitet nedostaje u relaciji.
-    Primer: IzbornaKomisija "1" -- "1" : CIK
-    Prepravlja u: IzbornaKomisija "1" -- "1" CIK
-    """
+    """Dodatna korekcija za slučajeve gde desni entitet nedostaje u relaciji."""
     lines = []
 
     for line in puml.splitlines():
-        # Traži pattern: Entitet "kard" -- "kard" : Labela (bez desnog entiteta)
         m = re.match(
             r'^\s*(\w+)\s+"([^"]+)"\s+(--|-->|<--|\*--|o--)'
             r'\s+"([^"]+)"\s*:\s*(\w+)\s*$',
@@ -243,8 +226,6 @@ def fix_missing_entity_in_relation(puml: str) -> str:
         )
         if m:
             left, left_card, arrow, right_card, label = m.groups()
-            # Ako labela izgleda kao ime klase (počinje velikim slovom),
-            # tretiraj je kao entitet
             if label and label[0].isupper():
                 line = f'{left} "{left_card}" {arrow} "{right_card}" {label}'
 
@@ -259,10 +240,8 @@ def fix_relations(puml: str) -> str:
 
     for line in puml.splitlines():
         line = line.replace('"0.."', '"0..*"')
-        # Popravi dupli -- (npr. "1" -- "1" -- Klasa → "1" -- "1" Klasa)
         line = re.sub(r'("\S+")\s+(--|-->)\s+("\S+")\s+(--|-->)\s+', r'\1 \2 \3 ', line)
 
-        # Slučaj 1: Relacija gde je desni entitet POSLE labele sa >
         m = re.match(
             r'^\s*(\w+)\s+"([^"]+)"\s+(--|-->|<--|\*--|o--)'
             r'\s+"([^"]+)"\s*:\s*(.*?)\s*>\s*(\w+)\s*$',
@@ -274,7 +253,6 @@ def fix_relations(puml: str) -> str:
             lines.append(line)
             continue
 
-        # Slučaj 2: Relacija gde je entitet u labeli sa :
         m = re.match(
             r'^\s*(\w+)\s+"([^"]+)"\s+(--|-->|<--|\*--|o--)'
             r'\s+"([^"]+)"\s*:\s*(\w+)\s*(?::\s*(.*))?$',
@@ -289,7 +267,6 @@ def fix_relations(puml: str) -> str:
             lines.append(line)
             continue
 
-        # Slučaj 3: Obrnut redosled kardinalnosti
         m = re.match(
             r'^\s*(\w+)\s+"([^"]+)"\s+(--|-->|<--|\*--|o--)'
             r'\s+(\w+)\s+"([^"]+)"\s*(?::\s*(.*))?$',
@@ -298,19 +275,12 @@ def fix_relations(puml: str) -> str:
         if m:
             left, left_card, arrow, right, right_card, label = m.groups()
             if label:
-                line = (
-                    f'{left} "{left_card}" {arrow} '
-                    f'"{right_card}" {right} : {label}'
-                )
+                line = f'{left} "{left_card}" {arrow} "{right_card}" {right} : {label}'
             else:
-                line = (
-                    f'{left} "{left_card}" {arrow} '
-                    f'"{right_card}" {right}'
-                )
+                line = f'{left} "{left_card}" {arrow} "{right_card}" {right}'
             lines.append(line)
             continue
 
-        # Slučaj 4: Već ispravan format relacije sa kardinalnostima
         m = re.match(
             r'^\s*(\w+)\s+"([^"]+)"\s+(--|-->|<--|\*--|o--)'
             r'\s+"([^"]+)"\s+(\w+)\s*(?::\s*(.*))?$',
@@ -319,15 +289,9 @@ def fix_relations(puml: str) -> str:
         if m:
             left, left_card, arrow, right_card, right, label = m.groups()
             if label:
-                line = (
-                    f'{left} "{left_card}" {arrow} '
-                    f'"{right_card}" {right} : {label}'
-                )
+                line = f'{left} "{left_card}" {arrow} "{right_card}" {right} : {label}'
             else:
-                line = (
-                    f'{left} "{left_card}" {arrow} '
-                    f'"{right_card}" {right}'
-                )
+                line = f'{left} "{left_card}" {arrow} "{right_card}" {right}'
             lines.append(line)
             continue
 
@@ -337,10 +301,7 @@ def fix_relations(puml: str) -> str:
 
 
 def rebuild_order(puml: str) -> str:
-    """
-    Reorganizuje PlantUML kod u pravilan redosled:
-    header, klase, relacije, ostalo, footer.
-    """
+    """Reorganizuje PlantUML kod u pravilan redosled."""
     blocks = []
     relations = []
     others = []
@@ -350,21 +311,17 @@ def rebuild_order(puml: str) -> str:
     for line in puml.splitlines():
         s = line.strip()
 
-        # Preskačemo @startuml i @enduml jer ćemo ih dodati na kraju
         if s in ["@startuml", "@enduml"]:
             continue
 
-        # Preskačemo skinparam linije jer ćemo ih dodati u header
         if s.startswith("skinparam"):
             continue
 
-        # Detektujemo početak bloka klase/enum-a/interfejsa
         if re.match(r"^\s*(class|enum|interface)\s+\w+\s*\{", line):
             in_block = True
             current = [line]
             continue
 
-        # Sakupljamo linije unutar bloka
         if in_block:
             current.append(line)
 
@@ -374,14 +331,12 @@ def rebuild_order(puml: str) -> str:
 
             continue
 
-        # Detektujemo relacije
         if any(x in s for x in ["--", "-->", "<--", "*--", "o--"]):
             relations.append(line)
         else:
             if s:
                 others.append(line)
 
-    # Sastavljamo finalni PlantUML kod u pravilnom redosledu
     final = [
         "@startuml",
         "skinparam defaultFontName Arial",
@@ -389,17 +344,17 @@ def rebuild_order(puml: str) -> str:
         "skinparam linetype ortho",
         "hide methods",
         "hide circle",
-        ""  # prazna linija za razdvajanje
+        ""
     ]
 
     final.extend(blocks)
 
     if relations:
-        final.append("")  # prazna linija pre relacija
+        final.append("")
         final.extend(relations)
 
     if others:
-        final.append("")  # prazna linija pre ostalog
+        final.append("")
         final.extend(others)
 
     final.append("@enduml")
@@ -408,35 +363,25 @@ def rebuild_order(puml: str) -> str:
 
 
 def sanitize_puml(puml: str) -> str:
-    """
-    Glavna funkcija za sanitizaciju PlantUML koda.
-    Primenjuje sve korekcije u odgovarajućem redosledu.
-    """
-    # Inicijalna korekcija: zamenjuje "extends" sa nasleđivanjem
+    """Glavna funkcija za sanitizaciju PlantUML koda."""
     puml = re.sub(r"(\w+)extends(\w+)", r"\1 --|> \2", puml)
 
-    # Osnovna ekstrakcija i validacija
     puml = extract_plantuml(puml)
     puml = ensure_header(puml)
 
-    # Normalizacija strukture
     puml = normalize_classes(puml)
     puml = move_relations_outside_classes(puml)
 
-    # Korekcija atributa
     puml = fix_attributes(puml)
 
-    # Korekcija relacija
     puml = fix_missing_entity_in_relation(puml)
     puml = fix_relations(puml)
 
     # Postprocesiranje: PK operacije i uklanjanje naslijeđenih PK
     puml, warnings = validate_and_fix_puml(puml)
 
-    # Finalna reorganizacija
     puml = rebuild_order(puml)
 
-    # Validacija da imamo bar jednu klasu
     if "class " not in puml:
         raise ValueError("Nema class definicija u PlantUML kodu.")
 
