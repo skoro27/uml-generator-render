@@ -74,7 +74,7 @@ Ti si ekspert za UML dijagrame klasa. Generiši PlantUML kod na osnovu sljedeće
     
     try:
         response = client.chat.completions.create(
-            model="qwen-2.5-32b",
+            model="qwen/qwen3-32b",
             messages=[
                 {"role": "system", "content": "Ti si ekspert za UML i PlantUML. Generišeš samo PlantUML kod, bez objašnjenja."},
                 {"role": "user", "content": prompt}
