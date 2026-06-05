@@ -1,244 +1,393 @@
 import re
+from postprocessor import validate_and_fix_puml as postprocess_puml
 
-def validate_and_fix_puml(puml_code: str) -> tuple[str, list]:
+def extract_plantuml(text: str) -> str:
+    """Izdvaja PlantUML kod iz LLM odgovora, uklanjajući <think> tagove i markdown."""
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    text = text.replace("```plantuml", "").replace("```", "")
+
+    start = text.find("@startuml")
+    end = text.rfind("@enduml")
+
+    if start != -1 and end != -1:
+        return text[start:end + len("@enduml")].strip()
+
+    # Ako nema @startuml/@enduml, pokušavamo da prepoznamo PlantUML linije
+    plant_lines = []
+
+    for line in text.splitlines():
+        s = line.strip()
+
+        if (
+            s.startswith("@startuml")
+            or s.startswith("@enduml")
+            or s.startswith("class ")
+            or s.startswith("interface ")
+            or s.startswith("enum ")
+            or s.startswith("skinparam")
+            or s.startswith("hide ")
+            or "--" in s
+            or s == "{"
+            or s == "}"
+            or re.match(r"^\w+\s*:\s*(String|Integer|Date)\s*$", s)
+        ):
+            plant_lines.append(line)
+
+    if plant_lines:
+        return (
+            "@startuml\n"
+            "skinparam defaultFontName Arial\n"
+            "skinparam classAttributeIconSize 0\n"
+            "skinparam linetype ortho\n"
+            "hide methods\n"
+            "hide circle\n\n"
+            + "\n".join(plant_lines)
+            + "\n@enduml"
+        )
+
+    raise ValueError(
+        "Nedostaje @startuml ili @enduml u LLM odgovoru. "
+        "Provjeri debug_llm_output.txt"
+    )
+
+
+def strip_diacritics(text: str) -> str:
+    """Uklanja dijakritičke znakove iz teksta."""
+    mapping = {
+        "š": "s", "ć": "c", "č": "c", "ž": "z", "đ": "dj",
+        "Š": "S", "Ć": "C", "Č": "C", "Ž": "Z", "Đ": "Dj",
+    }
+
+    for k, v in mapping.items():
+        text = text.replace(k, v)
+
+    return text
+
+
+def ensure_header(puml: str) -> str:
+    """Osigurava da PlantUML kod ima ispravan header sa skinparam podešavanjima."""
+    puml = strip_diacritics(puml)
+    lines = [line.rstrip() for line in puml.splitlines() if line.strip() != "```"]
+
+    if not lines:
+        raise ValueError("Prazan PlantUML kod.")
+
+    if lines[0].strip() != "@startuml":
+        lines.insert(0, "@startuml")
+
+    text = "\n".join(lines)
+
+    if "skinparam defaultFontName" not in text:
+        lines.insert(1, "skinparam defaultFontName Arial")
+
+    if "skinparam classAttributeIconSize" not in text:
+        lines.insert(2, "skinparam classAttributeIconSize 0")
+
+    if "skinparam linetype" not in text:
+        lines.insert(3, "skinparam linetype ortho")
+
+    if "@enduml" not in text:
+        lines.append("@enduml")
+
+    return "\n".join(lines)
+
+
+def clean_identifier(name: str) -> str:
+    """Čisti identifikator od specijalnih znakova i osigurava validan naziv."""
+    name = strip_diacritics(name)
+    name = re.sub(r"[^A-Za-z0-9_]", "", name)
+
+    if not name:
+        name = "X"
+
+    if name[0].isdigit():
+        name = "X" + name
+
+    return name
+
+
+def normalize_classes(puml: str) -> str:
+    """Normalizuje definicije klasa, enum-a i interfejsa."""
+    output = []
+
+    for line in puml.splitlines():
+        match = re.match(r"^(\s*)(class|enum|interface)\s+(.+?)\s*(\{)?\s*$", line)
+
+        if match:
+            indent = match.group(1)
+            kind = match.group(2)
+            name = match.group(3).strip().strip('"').strip("'")
+            clean = clean_identifier(name)
+
+            output.append(f"{indent}{kind} {clean} {{")
+        else:
+            output.append(line)
+
+    return "\n".join(output)
+
+
+def fix_attributes(puml: str) -> str:
+    """Popravlja atribute unutar klasa - uklanja metode i nepodržane tipove."""
+    output = []
+    in_class = False
+    allowed_types = {"String", "Integer", "Date", "Boolean", "Double", "Float"}
+
+    for line in puml.splitlines():
+        s = line.strip()
+
+        # Detektujemo ulazak u klasu
+        if re.match(r"^\s*(class|enum|interface)\s+\w+\s*\{", line):
+            in_class = True
+            output.append(line)
+            continue
+
+        # Detektujemo izlazak iz klase
+        if in_class and s == "}":
+            in_class = False
+            output.append(line)
+            continue
+
+        if in_class:
+            if not s:
+                continue
+
+            # Preskačemo metode (sadrže zagrade)
+            if "(" in s and ")" in s:
+                continue
+
+            # Preskačemo generičke tipove i nizove
+            if "<" in s or ">" in s or "[]" in s:
+                continue
+
+            # Preskačemo PK operacije (one se obrađuju u postprocessoru)
+            if re.match(r'^\s*PK\s*\(', s):
+                output.append(line)
+                continue
+
+            # Obrada atributa sa dvotačkom
+            if ":" in s:
+                m = re.match(r"^([A-Za-z_]\w*)\s*:\s*([A-Za-z_]\w*)$", s)
+                if m:
+                    attr = m.group(1)
+                    typ = m.group(2)
+
+                    if typ in allowed_types:
+                        indent = re.match(r"^(\s*)", line).group(1)
+                        output.append(f"{indent}{attr} : {typ}")
+
+                continue
+
+            # Obrada obrnutog formata: Tip Atribut
+            m = re.match(r"^(String|Integer|Date|Boolean|Double|Float)\s+([A-Za-z_]\w*)$", s)
+            if m:
+                typ = m.group(1)
+                attr = m.group(2)
+                indent = re.match(r"^(\s*)", line).group(1)
+                output.append(f"{indent}{attr} : {typ}")
+
+            continue
+
+        output.append(line)
+
+    return "\n".join(output)
+
+
+def move_relations_outside_classes(puml: str) -> str:
+    """Premešta relacije koje su greškom unutar klasa na kraj dokumenta."""
+    lines = puml.splitlines()
+    output = []
+    relations = []
+    in_class = False
+
+    for line in lines:
+        s = line.strip()
+
+        # Detektujemo početak klase
+        if re.match(r"^\s*(class|enum|interface)\s+\w+\s*\{", line):
+            in_class = True
+            output.append(line)
+            continue
+
+        # Detektujemo kraj klase
+        if in_class and s == "}":
+            in_class = False
+            output.append(line)
+            continue
+
+        # Ako smo unutar klase i naiđemo na relaciju, izdvajamo je
+        if in_class and any(x in s for x in ["--", "-->", "<--", "*--", "o--", "<|--", "--|>"]):
+            relations.append(s)
+            continue
+
+        output.append(line)
+
+    # Dodajemo relacije na kraj
+    output.extend(relations)
+    return "\n".join(output)
+
+
+def fix_missing_entity_in_relation(puml: str) -> str:
     """
-    Validira PlantUML kod i vraća ispravljeni kod + listu upozorenja.
+    Dodatna korekcija za slučajeve gde desni entitet nedostaje u relaciji.
     """
-    warnings = []
-    original_code = puml_code
-    
-    # Provjera: ima li {PK} oznaka?
-    if re.search(r'\{PK\}', puml_code):
-        warnings.append("Pronađene {PK} oznake - automatski ispravljeno")
-        puml_code = _fix_pk_annotations(puml_code)
-    
-    # Provjera: ima li potklasa sa 'id' atributom?
-    puml_code, id_warnings = _remove_inherited_ids(puml_code)
-    warnings.extend(id_warnings)
-    
-    # Provjera: ima li PK operacija?
-    if not re.search(r'PK\([^)]+\)', puml_code):
-        if re.search(r'class\s+\w+\s*\{[^}]*id\s*:', puml_code, re.IGNORECASE):
-            warnings.append("Nema PK operacija, ali postoje 'id' atributi - pokušavam popraviti")
-            puml_code = _convert_id_to_pk(puml_code)
-    
-    # Provjera: da li je format nasljeđivanja ispravan?
-    puml_code = _fix_inheritance_format(puml_code)
-    
-    return puml_code, warnings
+    lines = []
+
+    for line in puml.splitlines():
+        m = re.match(
+            r'^\s*(\w+)\s+"([^"]+)"\s+(--|-->|<--|\*--|o--)'
+            r'\s+"([^"]+)"\s*:\s*(\w+)\s*$',
+            line
+        )
+        if m:
+            left, left_card, arrow, right_card, label = m.groups()
+            if label and label[0].isupper():
+                line = f'{left} "{left_card}" {arrow} "{right_card}" {label}'
+
+        lines.append(line)
+
+    return "\n".join(lines)
 
 
-def _fix_pk_annotations(puml_code: str) -> str:
-    """Uklanja {PK} oznake i pretvara ih u PK() operacije."""
-    lines = puml_code.splitlines()
-    new_lines = []
-    inside_class = False
-    class_body = []
-    current_class = None
-    
-    for linija in lines:
-        class_start = re.match(r'^\s*(class|interface|enum)\s+(\w+)\s*\{', linija)
-        if class_start:
-            if inside_class and current_class:
-                new_lines.extend(_process_class_for_pk(class_body, current_class))
-            current_class = class_start.group(2)
-            inside_class = True
-            class_body = []
-            new_lines.append(linija)
+def fix_relations(puml: str) -> str:
+    """Popravlja sintaksu relacija u PlantUML kodu."""
+    lines = []
+
+    for line in puml.splitlines():
+        line = line.replace('"0.."', '"0..*"')
+        line = re.sub(r'("\S+")\s+(--|-->)\s+("\S+")\s+(--|-->)\s+', r'\1 \2 \3 ', line)
+
+        # Slučaj 1: Relacija sa labelom na kraju
+        m = re.match(
+            r'^\s*(\w+)\s+"([^"]+)"\s+(--|-->|<--|\*--|o--)'
+            r'\s+"([^"]+)"\s+(\w+)\s*:\s*(.*?)\s*$',
+            line
+        )
+        if m:
+            left, left_card, arrow, right_card, right, label = m.groups()
+            line = f'{left} "{left_card}" {arrow} "{right_card}" {right} : {label}'
+            lines.append(line)
             continue
-        
-        if inside_class and linija.strip() == "}":
-            new_lines.extend(_process_class_for_pk(class_body, current_class))
-            new_lines.append(linija)
-            current_class = None
-            inside_class = False
+
+        # Slučaj 2: Obrnut redosled kardinalnosti
+        m = re.match(
+            r'^\s*(\w+)\s+"([^"]+)"\s+(--|-->|<--|\*--|o--)'
+            r'\s+(\w+)\s+"([^"]+)"\s*(?::\s*(.*))?$',
+            line
+        )
+        if m:
+            left, left_card, arrow, right, right_card, label = m.groups()
+            if label:
+                line = f'{left} "{left_card}" {arrow} "{right_card}" {right} : {label}'
+            else:
+                line = f'{left} "{left_card}" {arrow} "{right_card}" {right}'
+            lines.append(line)
             continue
-        
-        if inside_class:
-            class_body.append(linija)
+
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
+def rebuild_order(puml: str) -> str:
+    """Reorganizuje PlantUML kod u pravilan redosled."""
+    blocks = []
+    relations = []
+    others = []
+    in_block = False
+    current = []
+
+    for line in puml.splitlines():
+        s = line.strip()
+
+        if s in ["@startuml", "@enduml"]:
+            continue
+
+        if s.startswith("skinparam"):
+            continue
+
+        if re.match(r"^\s*(class|enum|interface)\s+\w+\s*\{", line):
+            in_block = True
+            current = [line]
+            continue
+
+        if in_block:
+            current.append(line)
+
+            if s == "}":
+                blocks.append("\n".join(current))
+                in_block = False
+
+            continue
+
+        if any(x in s for x in ["--", "-->", "<--", "*--", "o--", "<|--", "--|>"]):
+            relations.append(line)
         else:
-            new_lines.append(linija)
-    
-    if inside_class and current_class:
-        new_lines.extend(_process_class_for_pk(class_body, current_class))
-        new_lines.append("}")
-    
-    return "\n".join(new_lines)
+            if s:
+                others.append(line)
+
+    final = [
+        "@startuml",
+        "skinparam defaultFontName Arial",
+        "skinparam classAttributeIconSize 0",
+        "skinparam linetype ortho",
+        "hide methods",
+        "hide circle",
+        ""
+    ]
+
+    final.extend(blocks)
+
+    if relations:
+        final.append("")
+        final.extend(relations)
+
+    if others:
+        final.append("")
+        final.extend(others)
+
+    final.append("@enduml")
+
+    return "\n".join(final)
 
 
-def _process_class_for_pk(body_lines, class_name):
-    """Procesuira tijelo klase i pretvara {PK} u PK() operaciju."""
-    result = []
-    pk_attributes = []
-    
-    for line in body_lines:
-        # Pronađi {PK} oznaku
-        pk_match = re.match(r'^\s*\{PK\}\s*(\w+)\s*:\s*(\w+)', line)
-        if pk_match:
-            attr_name = pk_match.group(1)
-            attr_type = pk_match.group(2)
-            pk_attributes.append((attr_name, attr_type))
-        else:
-            # Ukloni prazne {PK} ako ih ima
-            cleaned_line = re.sub(r'\{\s*PK\s*\}\s*', '', line)
-            if cleaned_line.strip():
-                result.append(cleaned_line)
-    
-    # Dodaj PK operaciju na početak ako ima PK atributa
-    if pk_attributes:
-        pk_params = ", ".join([f"{name} : {typ}" for name, typ in pk_attributes])
-        result.insert(0, f"    PK({pk_params})")
-    
-    return result
+def sanitize_puml(puml: str) -> str:
+    """
+    Glavna funkcija za sanitizaciju PlantUML koda.
+    Sada koristi postprocessor za PK i nasljeđivanje.
+    """
+    # Inicijalna korekcija: zamenjuje "extends" sa nasleđivanjem
+    puml = re.sub(r"(\w+)extends(\w+)", r"\1 --|> \2", puml)
 
+    # Osnovna ekstrakcija i validacija
+    puml = extract_plantuml(puml)
+    puml = ensure_header(puml)
 
-def _remove_inherited_ids(puml_code: str) -> tuple[str, list]:
-    """Uklanja id atribute iz potklasa (naslijeđene od natklase)."""
-    warnings = []
-    
-    # Pronađi sve klase i nasljeđivanja
-    class_names = set()
-    inheritance_map = {}
-    
-    for linija in puml_code.splitlines():
-        class_match = re.match(r'^\s*(class|interface|enum)\s+(\w+)\s*\{', linija)
-        if class_match:
-            class_names.add(class_match.group(2))
-        
-        inh_match = re.match(r'^\s*(\w+)\s*(?:<\|--|--\|>)\s*(\w+)', linija)
-        if inh_match:
-            # Ako je format Potklasa --|> Natklasa
-            if "--|>" in linija:
-                inheritance_map[inh_match.group(1)] = inh_match.group(2)
-            # Ako je format Natklasa <|-- Potklasa
-            elif "<|--" in linija:
-                inheritance_map[inh_match.group(2)] = inh_match.group(1)
-    
-    # Procesuiraj svaku klasu
-    lines = puml_code.splitlines()
-    new_lines = []
-    inside_class = False
-    current_class = None
-    class_body = []
-    
-    for linija in lines:
-        class_start = re.match(r'^\s*(class|interface|enum)\s+(\w+)\s*\{', linija)
-        if class_start:
-            if inside_class and current_class:
-                new_lines.extend(_clean_class_body(class_body, current_class, inheritance_map, warnings))
-            current_class = class_start.group(2)
-            inside_class = True
-            class_body = []
-            new_lines.append(linija)
-            continue
-        
-        if inside_class and linija.strip() == "}":
-            new_lines.extend(_clean_class_body(class_body, current_class, inheritance_map, warnings))
-            new_lines.append(linija)
-            current_class = None
-            inside_class = False
-            continue
-        
-        if inside_class:
-            class_body.append(linija)
-        else:
-            new_lines.append(linija)
-    
-    if inside_class and current_class:
-        new_lines.extend(_clean_class_body(class_body, current_class, inheritance_map, warnings))
-        new_lines.append("}")
-    
-    return "\n".join(new_lines), warnings
+    # Normalizacija strukture
+    puml = normalize_classes(puml)
+    puml = move_relations_outside_classes(puml)
 
+    # Korekcija atributa
+    puml = fix_attributes(puml)
 
-def _clean_class_body(body_lines, class_name, inheritance_map, warnings):
-    """Čisti tijelo klase - uklanja naslijeđene PK atribute."""
-    result = []
-    is_subclass = class_name in inheritance_map
+    # ========== NOVO: Postprocesiranje (PK i nasljeđivanje) ==========
+    # Ovo je ključni dio - koristi tvoj postprocessor!
+    puml, warnings = postprocess_puml(puml)
     
-    for line in body_lines:
-        # Provjeri da li je atribut 'id'
-        id_match = re.match(r'^\s*id\s*:\s*\w+', line, re.IGNORECASE)
-        if id_match and is_subclass:
-            warnings.append(f"U klasi '{class_name}' uklonjen naslijeđeni atribut 'id' (nasljeđuje se od {inheritance_map[class_name]})")
-            continue
-        
-        # Provjeri PK operaciju - ako je potklasa, ukloni je
-        if is_subclass and re.match(r'^\s*PK\s*\(', line):
-            warnings.append(f"U klasi '{class_name}' uklonjena PK operacija (nasljeđuje se od {inheritance_map[class_name]})")
-            continue
-        
-        result.append(line)
-    
-    return result
+    # Ako ima upozorenja, možeš ih logovati (opciono)
+    if warnings:
+        for w in warnings:
+            print(f"⚠️ {w}")
+    # =================================================================
 
+    # Korekcija relacija
+    puml = fix_missing_entity_in_relation(puml)
+    puml = fix_relations(puml)
 
-def _convert_id_to_pk(puml_code: str) -> str:
-    """Pretvara obične 'id' atribute u PK operacije."""
-    lines = puml_code.splitlines()
-    new_lines = []
-    inside_class = False
-    class_body = []
-    current_class = None
-    
-    for linija in lines:
-        class_start = re.match(r'^\s*(class|interface|enum)\s+(\w+)\s*\{', linija)
-        if class_start:
-            if inside_class and current_class:
-                new_lines.extend(_convert_class_ids_to_pk(class_body, current_class))
-            current_class = class_start.group(2)
-            inside_class = True
-            class_body = []
-            new_lines.append(linija)
-            continue
-        
-        if inside_class and linija.strip() == "}":
-            new_lines.extend(_convert_class_ids_to_pk(class_body, current_class))
-            new_lines.append(linija)
-            current_class = None
-            inside_class = False
-            continue
-        
-        if inside_class:
-            class_body.append(linija)
-        else:
-            new_lines.append(linija)
-    
-    if inside_class and current_class:
-        new_lines.extend(_convert_class_ids_to_pk(class_body, current_class))
-        new_lines.append("}")
-    
-    return "\n".join(new_lines)
+    # Finalna reorganizacija
+    puml = rebuild_order(puml)
 
+    # Validacija da imamo bar jednu klasu
+    if "class " not in puml:
+        raise ValueError("Nema class definicija u PlantUML kodu.")
 
-def _convert_class_ids_to_pk(body_lines, class_name):
-    """Pretvara 'id' atribut u PK operaciju."""
-    result = []
-    id_attribute = None
-    other_lines = []
-    
-    for line in body_lines:
-        id_match = re.match(r'^\s*id\s*:\s*(\w+)', line, re.IGNORECASE)
-        if id_match and not id_attribute:
-            id_attribute = id_match.group(1)
-        else:
-            other_lines.append(line)
-    
-    if id_attribute:
-        result.append(f"    PK(id : {id_attribute})")
-    
-    result.extend(other_lines)
-    return result
-
-
-def _fix_inheritance_format(puml_code: str) -> str:
-    """Popravlja format nasljeđivanja u ispravan PlantUML format."""
-    # Zamijeni Dijete --|> Roditelj u Roditelj <|-- Dijete
-    pattern = r'(\w+)\s*--\|>\s*(\w+)'
-    
-    def replace_inheritance(match):
-        dijete = match.group(1)
-        roditelj = match.group(2)
-        return f"{roditelj} <|-- {dijete}"
-    
-    return re.sub(pattern, replace_inheritance, puml_code)
+    return puml.strip()
