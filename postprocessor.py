@@ -32,7 +32,6 @@ def postprocess_puml(puml_code: str) -> str:
     inside_class = False
     current_class = None
     class_body = []
-    has_invalid_pk = False
     
     for linija in lines:
         # Početak klase
@@ -91,7 +90,7 @@ def _process_class_body(body_lines, class_name, inheritance_map):
         attr_type = match.group(2)
         
         # Ako atribut izgleda kao potencijalni PK (po imenu)
-        if attr_name.lower() in ['id', 'sifra', 'jmb', 'oib', 'matični_broj', 'broj']:
+        if attr_name.lower() in ['id', 'sifra', 'jmb', 'oib', 'maticni_broj', 'broj']:
             pk_attributes.append((attr_name, attr_type))
             # Ukloni ovaj atribut iz body-ja (biće dodat kao operacija)
             body_text = body_text.replace(match.group(0), "")
@@ -120,7 +119,7 @@ def _process_class_body(body_lines, class_name, inheritance_map):
     return result_lines
 
 
-def validate_and_fix_puml(puml_code: str) -> tuple[str, list]:
+def validate_and_fix_puml(puml_code: str) -> tuple:
     """
     Validira PlantUML kod i vraća ispravljeni kod + listu upozorenja.
     """
@@ -132,11 +131,12 @@ def validate_and_fix_puml(puml_code: str) -> tuple[str, list]:
         puml_code = postprocess_puml(puml_code)
     
     # Provjera: ima li potklasa sa 'id' atributom?
-    # Ovo se rješava u postprocessu
+    if re.search(r'class\s+\w+\s*\{[^}]*id\s*:', puml_code, re.IGNORECASE):
+        puml_code = postprocess_puml(puml_code)
+        warnings.append("Uklonjeni naslijeđeni id atributi iz potklasa")
     
     # Provjera: ima li PK operacija?
     if not re.search(r'PK\([^)]+\)', puml_code):
-        # Ako nema PK operacija, pokušaj popraviti
         if re.search(r'class\s+\w+\s*\{[^}]*id\s*:', puml_code, re.IGNORECASE):
             warnings.append("Nema PK operacija, ali postoje 'id' atributi - pokušavam popraviti")
             puml_code = postprocess_puml(puml_code)
