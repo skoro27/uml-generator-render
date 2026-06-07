@@ -45,37 +45,19 @@ Ti si ekspert za UML dijagrame klasa. Generiši PlantUML kod na osnovu sljedeće
 
 3. **NE stavljaj objekte drugih klasa kao atribute!**
    Koristi relacije za povezivanje klasa.
-   
-   ❌ LOŠE:
-   class BiračkoMjesto {{
-     Adresa adresa
-   }}
-   
-   ✅ DOBRO:
-   class BiračkoMjesto {{
-     PK(redniBroj : Integer)
-   }}
-   Adresa "1" -- "0..*" BiračkoMjesto : nalaziSeNa
 
 4. **Generalizacija (nasljeđivanje) se piše:** `Natklasa <|-- Potklasa`
 
 5. **Asocijacije sa kardinalnostima:**
    `KlasaA "1" -- "0..*" KlasaB : nazivVeze`
 
-6. **Ako više entiteta može dijeliti isti resurs, koristi "0..*" na toj strani.**
-   Npr: Adresa "1" -- "0..*" BiračkoMjesto (više mjesta na istoj adresi)
+6. **Obavezno koristi @startuml i @enduml.**
 
-7. **Obavezno koristi @startuml i @enduml.**
+7. **Svi atributi moraju imati tip (String, Integer, Date, Boolean...)**
 
-8. **Svi atributi moraju imati tip (String, Integer, Date, Boolean...)**
+8. **NE koristi <think> tagove. NE piši objašnjenja. SAMO PlantUML kod!**
 
-9. **NE koristi <think> tagove. NE piši objašnjenja. SAMO PlantUML kod!**
-
-10. **SVE nazive klasa, atributa i relacija piši NA SRPSKOM JEZIKU (ijekavica)!**
-    - Imena klasa: Organ, BiračkiOdbor, IzbornaKomisija, Osoba, Adresa, Opština...
-    - Atributi: ime, prezime, datumRođenja, naziv, adresa, broj...
-    - Nazivi veza: ima, sadrži, pripada, imenuje, nalaziSe...
-    - NE koristi engleske riječi (name, address, id, member...)
+9. **SVE nazive klasa, atributa i relacija piši NA SRPSKOM JEZIKU (ijekavica)!**
 
 **Generiši SAMO PlantUML kod, bez dodatnih objašnjenja.**
 """
