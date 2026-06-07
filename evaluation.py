@@ -22,19 +22,24 @@ def evaluate_puml(puml_code: str, rendered_ok: bool = False) -> dict:
         "rendered_ok": rendered_ok
     }
     
-    class_names = []
     inheritance_map = {}
     
     # 1. Pronađi sve klase
     class_pattern = r'^\s*(class|interface|enum)\s+(\w+)\s*\{'
     classes = re.findall(class_pattern, puml_code, re.MULTILINE)
     results["class_count"] = len(classes)
-    class_names = [cls[1] for cls in classes]
     
     # 2. Pronađi nasljeđivanja
     inheritance_pattern = r'(\w+)\s*<\|--\s*(\w+)'
     for match in re.findall(inheritance_pattern, puml_code):
         natklasa, potklasa = match
+        inheritance_map[potklasa] = natklasa
+        results["inheritance_count"] += 1
+    
+    # Takođe: Potklasa --|> Natklasa
+    inheritance_pattern2 = r'(\w+)\s*--\|>\s*(\w+)'
+    for match in re.findall(inheritance_pattern2, puml_code):
+        potklasa, natklasa = match
         inheritance_map[potklasa] = natklasa
         results["inheritance_count"] += 1
     
@@ -66,7 +71,7 @@ def evaluate_puml(puml_code: str, rendered_ok: bool = False) -> dict:
     
     # 4. Pronađi relacije
     for linija in puml_code.splitlines():
-        if "--" in linija and "<|--" not in linija:
+        if "--" in linija and "<|--" not in linija and "--|>" not in linija:
             results["relation_count"] += 1
             
             if ':"' in linija or '":' in linija:
