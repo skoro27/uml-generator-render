@@ -7,6 +7,7 @@ def postprocess_puml(puml_code: str) -> str:
     2. Dodaje PK() operacije
     3. Uklanja naslijeđene PK iz potklasa
     4. Uklanja atribute koji su reference na druge klase (treba da budu relacije)
+    5. Uklanja duplirane relacije
     """
     
     lines = puml_code.splitlines()
@@ -70,7 +71,12 @@ def postprocess_puml(puml_code: str) -> str:
         new_lines.extend(_process_class_body(class_body, current_class, inheritance_map, all_class_names))
         new_lines.append("}")
     
-    return "\n".join(new_lines)
+    result = "\n".join(new_lines)
+    
+    # Ukloni duplirane relacije
+    result = _remove_duplicate_relations(result)
+    
+    return result
 
 
 def _process_class_body(body_lines, class_name, inheritance_map, all_class_names):
@@ -84,18 +90,12 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
     
     # 2. Pronađi atribute koji su reference na druge klase (npr. Address address)
     attr_pattern = r'^\s*(\w+)\s+(\w+)\s*$'
-    lines_to_remove = []
     for match in re.finditer(attr_pattern, body_text, re.MULTILINE):
         type_name = match.group(1)
-        var_name = match.group(2)
-        # Ako tip izgleda kao ime klase (veliko slovo)
         if type_name[0].isupper() and type_name in all_class_names:
-            lines_to_remove.append(match.group(0))
+            body_text = body_text.replace(match.group(0), "")
     
-    for line in lines_to_remove:
-        body_text = body_text.replace(line, "")
-    
-    # 3. Pronađi atribute koji izgledaju kao PK (id, jmb, sifra, oib, kod...)
+    # 3. Pronađi atribute koji izgledaju kao PK (id, jmb, sifra, oib, kod, serialNumber...)
     pk_attributes = []
     attr_pattern2 = r'^\s*(\w+)\s*:\s*(\w+)'
     
@@ -129,8 +129,62 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
     return result_lines
 
 
+def _remove_duplicate_relations(puml_code: str) -> str:
+    """Uklanja duplirane relacije (npr. A--B i B--A)."""
+    lines = puml_code.splitlines()
+    seen_pairs = set()
+    seen_exact = set()
+    result = []
+    
+    for line in lines:
+        s = line.strip()
+        
+        # Preskoči prazne linije i linije koje nisu relacije
+        if not s:
+            result.append(line)
+            continue
+        
+        # Detektuj da li je linija relacija
+        is_relation = False
+        if '--' in s or '<|--' in s or '--|>' in s:
+            # Provjeri da nije unutar klase (linije unutar klase imaju atribute sa :)
+            if not re.match(r'^\s*\w+\s*:', s):
+                is_relation = True
+        
+        if not is_relation:
+            result.append(line)
+            continue
+        
+        # Normalizuj liniju za poređenje
+        normalized = ' '.join(s.split())
+        
+        # Ako je već viđena tačno ovakva linija, preskoči
+        if normalized in seen_exact:
+            continue
+        
+        seen_exact.add(normalized)
+        
+        # Za asocijacije (--), provjeri i obrnuti par
+        if '--' in s and '<|--' not in s and '--|>' not in s:
+            # Izvuci entitete sa krajeva
+            parts = normalized.split()
+            # Prvi entitet je prije "1" ili kardinalnosti
+            ent_a = parts[0] if parts else ""
+            ent_b = parts[-1].split(':')[0].strip() if parts else ""
+            
+            if ent_a and ent_b:
+                pair = tuple(sorted([ent_a, ent_b]))
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
+        
+        result.append(line)
+    
+    return "\n".join(result)
+
+
 def validate_and_fix_puml(puml_code: str) -> tuple:
-    """Validira i ispravlja PlantUML kod."""
+    """Validira i ispravlja PlantUML kod. Vraća (kod, upozorenja)."""
     warnings = []
     
     # Provjera {PK} oznaka
@@ -152,5 +206,11 @@ def validate_and_fix_puml(puml_code: str) -> tuple:
             warnings.append(f"Pronađena referenca na klasu {cls} unutar atributa - ispravljeno")
             puml_code = postprocess_puml(puml_code)
             break
+    
+    # Ukloni duplirane relacije
+    puml_before = puml_code
+    puml_code = _remove_duplicate_relations(puml_code)
+    if puml_before != puml_code:
+        warnings.append("Uklonjene duplirane relacije")
     
     return puml_code, warnings
