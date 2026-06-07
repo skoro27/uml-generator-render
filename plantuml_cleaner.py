@@ -130,7 +130,7 @@ def normalize_classes(puml: str) -> str:
 
 
 def fix_attributes(puml: str) -> str:
-    """Popravlja atribute unutar klasa - uklanja metode i nepodržane tipove."""
+    """Popravlja atribute unutar klasa - uklanja metode i nepodržane tipove, ali čuva PK()."""
     output = []
     in_class = False
     allowed_types = {"String", "Integer", "Date"}
@@ -152,7 +152,8 @@ def fix_attributes(puml: str) -> str:
             if not s:
                 continue
 
-            if "(" in s and ")" in s:
+            # Preskačemo metode ALI čuvamo PK() operacije
+            if "(" in s and ")" in s and "PK(" not in s:
                 continue
 
             if "<" in s or ">" in s or "[]" in s:
