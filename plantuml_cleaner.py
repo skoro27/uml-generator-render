@@ -6,6 +6,7 @@ from postprocessor import validate_and_fix_puml
 def extract_plantuml(text: str) -> str:
     """Izdvaja PlantUML kod iz LLM odgovora, uklanjajući <think> tagove i markdown."""
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    text = re.sub(r"<think>.*", "", text, flags=re.DOTALL)
     text = text.replace("```plantuml", "").replace("```", "")
 
     start = text.find("@startuml")
