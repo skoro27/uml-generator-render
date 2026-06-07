@@ -3,30 +3,38 @@ import re
 def postprocess_puml(puml_code: str) -> str:
     """
     Popravlja PlantUML kod:
-    1. Uklanja {PK} iz atributa
-    2. Dodaje PK() operaciju
-    3. Uklanja naslijeđene PK atribute iz potklasa
+    1. Uklanja {PK} oznake
+    2. Dodaje PK() operacije
+    3. Uklanja naslijeđene PK iz potklasa
+    4. Uklanja atribute koji su reference na druge klase (treba da budu relacije)
     """
     
     lines = puml_code.splitlines()
     new_lines = []
     
-    class_names = []
-    inheritance_map = {}  # potklasa -> natklasa
+    inheritance_map = {}
+    all_class_names = set()
     
     # Prvi prolaz: pronađi sve klase i nasljeđivanja
     for linija in lines:
-        # Nasljeđivanje
+        # Nasljeđivanje: Natklasa <|-- Potklasa
         inheritance_match = re.match(r'^\s*(\w+)\s*<\|--\s*(\w+)', linija)
         if inheritance_match:
-            potklasa = inheritance_match.group(1)
-            natklasa = inheritance_match.group(2)
+            natklasa = inheritance_match.group(1)
+            potklasa = inheritance_match.group(2)
+            inheritance_map[potklasa] = natklasa
+        
+        # Takođe: Potklasa --|> Natklasa
+        inheritance_match2 = re.match(r'^\s*(\w+)\s*--\|>\s*(\w+)', linija)
+        if inheritance_match2:
+            potklasa = inheritance_match2.group(1)
+            natklasa = inheritance_match2.group(2)
             inheritance_map[potklasa] = natklasa
         
         # Ime klase
         class_match = re.match(r'^\s*(class|interface|enum)\s+(\w+)\s*\{', linija)
         if class_match:
-            class_names.append(class_match.group(2))
+            all_class_names.add(class_match.group(2))
     
     # Drugi prolaz: procesuiraj svaku liniju
     inside_class = False
@@ -34,12 +42,10 @@ def postprocess_puml(puml_code: str) -> str:
     class_body = []
     
     for linija in lines:
-        # Početak klase
         class_start = re.match(r'^\s*(class|interface|enum)\s+(\w+)\s*\{', linija)
         if class_start:
-            # Završi prethodnu klasu ako postoji
             if inside_class and current_class:
-                new_lines.extend(_process_class_body(class_body, current_class, inheritance_map))
+                new_lines.extend(_process_class_body(class_body, current_class, inheritance_map, all_class_names))
                 class_body = []
             
             current_class = class_start.group(2)
@@ -47,30 +53,27 @@ def postprocess_puml(puml_code: str) -> str:
             new_lines.append(linija)
             continue
         
-        # Kraj klase
         if inside_class and linija.strip() == "}":
-            new_lines.extend(_process_class_body(class_body, current_class, inheritance_map))
+            new_lines.extend(_process_class_body(class_body, current_class, inheritance_map, all_class_names))
             new_lines.append(linija)
             class_body = []
             current_class = None
             inside_class = False
             continue
         
-        # Unutar klase
         if inside_class:
             class_body.append(linija)
         else:
             new_lines.append(linija)
     
-    # Zadnja klasa
     if inside_class and current_class:
-        new_lines.extend(_process_class_body(class_body, current_class, inheritance_map))
+        new_lines.extend(_process_class_body(class_body, current_class, inheritance_map, all_class_names))
         new_lines.append("}")
     
     return "\n".join(new_lines)
 
 
-def _process_class_body(body_lines, class_name, inheritance_map):
+def _process_class_body(body_lines, class_name, inheritance_map, all_class_names):
     """Procesuira tijelo jedne klase."""
     
     is_potklasa = class_name in inheritance_map
@@ -79,39 +82,46 @@ def _process_class_body(body_lines, class_name, inheritance_map):
     # 1. Ukloni sve {PK} oznake
     body_text = re.sub(r'\{\s*PK\s*\}\s*', '', body_text)
     
-    # 2. Pronađi atribute koji izgledaju kao PK (id, sifra, jmb...)
-    # i pretvori ih u PK() operaciju
-    pk_attributes = []
-    
-    # Pokupi sve atribute koji bi mogli biti PK
-    attr_pattern = r'^\s*(\w+)\s*:\s*(\w+)'
+    # 2. Pronađi atribute koji su reference na druge klase (npr. Address address)
+    attr_pattern = r'^\s*(\w+)\s+(\w+)\s*$'
+    lines_to_remove = []
     for match in re.finditer(attr_pattern, body_text, re.MULTILINE):
+        type_name = match.group(1)
+        var_name = match.group(2)
+        # Ako tip izgleda kao ime klase (veliko slovo)
+        if type_name[0].isupper() and type_name in all_class_names:
+            lines_to_remove.append(match.group(0))
+    
+    for line in lines_to_remove:
+        body_text = body_text.replace(line, "")
+    
+    # 3. Pronađi atribute koji izgledaju kao PK (id, jmb, sifra, oib, kod...)
+    pk_attributes = []
+    attr_pattern2 = r'^\s*(\w+)\s*:\s*(\w+)'
+    
+    for match in re.finditer(attr_pattern2, body_text, re.MULTILINE):
         attr_name = match.group(1)
         attr_type = match.group(2)
         
-        # Ako atribut izgleda kao potencijalni PK (po imenu)
-        if attr_name.lower() in ['id', 'sifra', 'jmb', 'oib', 'maticni_broj', 'broj']:
+        if attr_name.lower() in ['id', 'jmb', 'sifra', 'oib', 'maticni_broj', 'broj', 'kod', 'serialnumber', 'uniquecode']:
             pk_attributes.append((attr_name, attr_type))
-            # Ukloni ovaj atribut iz body-ja (biće dodat kao operacija)
             body_text = body_text.replace(match.group(0), "")
     
-    # 3. Ako je potklasa, ukloni sve atribute koji se zovu 'id'
-    # (jer se nasljeđuju od natklase)
+    # 4. Ako je potklasa, ukloni sve atribute koji liče na PK
     if is_potklasa:
-        for match in re.finditer(attr_pattern, body_text, re.MULTILINE):
+        for match in re.finditer(attr_pattern2, body_text, re.MULTILINE):
             attr_name = match.group(1)
-            if attr_name.lower() == 'id':
+            if attr_name.lower() in ['id', 'jmb', 'sifra', 'oib', 'maticni_broj', 'broj', 'kod', 'serialnumber', 'uniquecode']:
                 body_text = body_text.replace(match.group(0), "")
     
-    # 4. Dodaj PK operacije na početak body-ja (samo ako nije potklasa)
+    # 5. Dodaj PK operacije (samo ako nije potklasa)
     result_lines = []
     
     if pk_attributes and not is_potklasa:
-        # Dodaj PK operaciju
         pk_params = ", ".join([f"{name} : {tip}" for name, tip in pk_attributes])
         result_lines.append(f"    PK({pk_params})")
     
-    # Dodaj ostatak body-ja (očišćen od praznih linija)
+    # Dodaj ostatak body-ja
     for line in body_text.splitlines():
         if line.strip():
             result_lines.append(line)
@@ -120,25 +130,27 @@ def _process_class_body(body_lines, class_name, inheritance_map):
 
 
 def validate_and_fix_puml(puml_code: str) -> tuple:
-    """
-    Validira PlantUML kod i vraća ispravljeni kod + listu upozorenja.
-    """
+    """Validira i ispravlja PlantUML kod."""
     warnings = []
     
-    # Provjera: ima li {PK} oznaka?
+    # Provjera {PK} oznaka
     if re.search(r'\{PK\}', puml_code):
         warnings.append("Pronađene {PK} oznake - automatski ispravljeno")
         puml_code = postprocess_puml(puml_code)
     
-    # Provjera: ima li potklasa sa 'id' atributom?
-    if re.search(r'class\s+\w+\s*\{[^}]*id\s*:', puml_code, re.IGNORECASE):
-        puml_code = postprocess_puml(puml_code)
-        warnings.append("Uklonjeni naslijeđeni id atributi iz potklasa")
-    
-    # Provjera: ima li PK operacija?
+    # Provjera PK operacija
     if not re.search(r'PK\([^)]+\)', puml_code):
-        if re.search(r'class\s+\w+\s*\{[^}]*id\s*:', puml_code, re.IGNORECASE):
-            warnings.append("Nema PK operacija, ali postoje 'id' atributi - pokušavam popraviti")
+        if re.search(r'class\s+\w+\s*\{[^}]*\w+\s*:\s*\w+', puml_code):
+            warnings.append("Nema PK operacija - pokušavam automatski dodati")
             puml_code = postprocess_puml(puml_code)
+    
+    # Provjera referenci na druge klase unutar atributa
+    class_names = set(re.findall(r'class\s+(\w+)\s*\{', puml_code))
+    for cls in class_names:
+        pattern = rf'^\s*{cls}\s+\w+\s*$'
+        if re.search(pattern, puml_code, re.MULTILINE):
+            warnings.append(f"Pronađena referenca na klasu {cls} unutar atributa - ispravljeno")
+            puml_code = postprocess_puml(puml_code)
+            break
     
     return puml_code, warnings
