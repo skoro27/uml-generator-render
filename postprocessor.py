@@ -4,9 +4,9 @@ def postprocess_puml(puml_code: str) -> str:
     """
     Popravlja PlantUML kod:
     1. Uklanja {PK} oznake
-    2. Dodaje PK() operacije
+    2. Dodaje PK() operacije u dio OPERACIJA (ispod --)
     3. Uklanja naslijeđene PK iz potklasa
-    4. Uklanja atribute koji su reference na druge klase (treba da budu relacije)
+    4. Uklanja atribute koji su reference na druge klase
     5. Uklanja duplirane relacije
     """
     
@@ -88,14 +88,20 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
     # 1. Ukloni sve {PK} oznake
     body_text = re.sub(r'\{\s*PK\s*\}\s*', '', body_text)
     
-    # 2. Pronađi atribute koji su reference na druge klase (npr. Address address)
+    # 2. Ukloni postojeće PK() operacije (biće ponovo dodate na pravo mjesto)
+    body_text = re.sub(r'^\s*PK\([^)]+\)\s*$', '', body_text, flags=re.MULTILINE)
+    
+    # 3. Ukloni postojeće -- linije (biće ponovo dodate)
+    body_text = re.sub(r'^\s*--\s*$', '', body_text, flags=re.MULTILINE)
+    
+    # 4. Pronađi atribute koji su reference na druge klase (npr. Address address)
     attr_pattern = r'^\s*(\w+)\s+(\w+)\s*$'
     for match in re.finditer(attr_pattern, body_text, re.MULTILINE):
         type_name = match.group(1)
         if type_name[0].isupper() and type_name in all_class_names:
             body_text = body_text.replace(match.group(0), "")
     
-    # 3. Pronađi atribute koji izgledaju kao PK (id, jmb, sifra, oib, kod, serialNumber...)
+    # 5. Pronađi atribute koji izgledaju kao PK (id, jmb, sifra, oib, kod, serialNumber...)
     pk_attributes = []
     attr_pattern2 = r'^\s*(\w+)\s*:\s*(\w+)'
     
@@ -103,26 +109,46 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
         attr_name = match.group(1)
         attr_type = match.group(2)
         
-        if attr_name.lower() in ['id', 'jmb', 'sifra', 'oib', 'maticni_broj', 'broj', 'kod', 'serialnumber', 'uniquecode']:
+        if attr_name.lower() in ['id', 'jmb', 'sifra', 'oib', 'maticni_broj', 'broj', 'kod', 'serialnumber', 'uniquecode', 'memberid']:
             pk_attributes.append((attr_name, attr_type))
             body_text = body_text.replace(match.group(0), "")
     
-    # 4. Ako je potklasa, ukloni sve atribute koji liče na PK
+    # 6. Ako je potklasa, ukloni sve atribute koji liče na PK
     if is_potklasa:
         for match in re.finditer(attr_pattern2, body_text, re.MULTILINE):
             attr_name = match.group(1)
-            if attr_name.lower() in ['id', 'jmb', 'sifra', 'oib', 'maticni_broj', 'broj', 'kod', 'serialnumber', 'uniquecode']:
+            if attr_name.lower() in ['id', 'jmb', 'sifra', 'oib', 'maticni_broj', 'broj', 'kod', 'serialnumber', 'uniquecode', 'memberid']:
                 body_text = body_text.replace(match.group(0), "")
     
-    # 5. Dodaj PK operacije (samo ako nije potklasa)
+    # 7. Sastavi rezultat
     result_lines = []
     
+    # Prvo dodaj atribute (očišćene)
+    atributi_lines = []
+    operacije_lines = []
+    
+    for line in body_text.splitlines():
+        stripped = line.strip()
+        if stripped:
+            # Ako je atribut (ima :), dodaj u atribute
+            if ':' in stripped and '(' not in stripped:
+                atributi_lines.append(line)
+            else:
+                operacije_lines.append(line)
+    
+    # Dodaj atribute
+    for line in atributi_lines:
+        if line.strip():
+            result_lines.append(line)
+    
+    # Dodaj -- separator i PK operacije (samo ako nije potklasa i ima PK)
     if pk_attributes and not is_potklasa:
+        result_lines.append("    --")
         pk_params = ", ".join([f"{name} : {tip}" for name, tip in pk_attributes])
         result_lines.append(f"    PK({pk_params})")
     
-    # Dodaj ostatak body-ja
-    for line in body_text.splitlines():
+    # Dodaj ostale operacije (ako postoje)
+    for line in operacije_lines:
         if line.strip():
             result_lines.append(line)
     
@@ -163,8 +189,6 @@ def _remove_duplicate_relations(puml_code: str) -> str:
         
         # Za asocijacije (--), provjeri i obrnuti par
         if '--' in s and '<|--' not in s and '--|>' not in s:
-            # Regex za izvlačenje entiteta iz relacije sa kardinalnostima
-            # Format: EntitetA "kard" -- "kard" EntitetB : labela
             match = re.match(r'(\w+)\s+"[^"]*"\s+--\s+"[^"]*"\s+(\w+)', s)
             if match:
                 ent_a = match.group(1)
