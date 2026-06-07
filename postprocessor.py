@@ -8,7 +8,7 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
     body_text = re.sub(r'\{\s*PK\s*\}\s*', '', body_text)
     
     # 2. Ukloni sve postojeće PK() operacije i -- linije
-    body_text = re.sub(r'^\s*PK\([^)]+\)\s*$', '', body_text, flags=re.MULTILINE)
+    body_text = re.sub(r'PK\([^)]*\)', '', body_text)
     body_text = re.sub(r'^\s*--\s*$', '', body_text, flags=re.MULTILINE)
     
     # 3. Ukloni reference na druge klase
