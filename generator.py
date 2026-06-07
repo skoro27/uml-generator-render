@@ -69,6 +69,8 @@ Ti si ekspert za UML dijagrame klasa. Generiši PlantUML kod na osnovu sljedeće
 
 6. **Svi atributi i operacije moraju imati tip podatka (String, Integer, Boolean, Date...)**
 
+7. **NE koristi <think> tagove. NE piši objašnjenja. SAMO PlantUML kod!**
+
 **Generiši SAMO PlantUML kod, bez dodatnih objašnjenja.**
 """
     
@@ -76,7 +78,7 @@ Ti si ekspert za UML dijagrame klasa. Generiši PlantUML kod na osnovu sljedeće
         response = client.chat.completions.create(
             model="qwen/qwen3-32b",
             messages=[
-                {"role": "system", "content": "Ti si ekspert za UML i PlantUML. Generišeš samo PlantUML kod, bez objašnjenja."},
+                {"role": "system", "content": "Ti si ekspert za UML i PlantUML. Generišeš samo PlantUML kod, bez objašnjenja. Ne koristiš <think> tagove."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
@@ -84,6 +86,9 @@ Ti si ekspert za UML dijagrame klasa. Generiši PlantUML kod na osnovu sljedeće
         )
         
         puml_code = response.choices[0].message.content
+        
+        # Ukloni <think> tagove (Qwen model ih ponekad dodaje)
+        puml_code = re.sub(r'<think>.*?</think>', '', puml_code, flags=re.DOTALL)
         
         # Očisti kod ako ima markdown formatiranja
         puml_code = re.sub(r'^```plantuml\n?', '', puml_code, flags=re.MULTILINE)
