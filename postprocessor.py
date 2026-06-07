@@ -139,7 +139,6 @@ def _remove_duplicate_relations(puml_code: str) -> str:
     for line in lines:
         s = line.strip()
         
-        # Preskoči prazne linije i linije koje nisu relacije
         if not s:
             result.append(line)
             continue
@@ -147,7 +146,6 @@ def _remove_duplicate_relations(puml_code: str) -> str:
         # Detektuj da li je linija relacija
         is_relation = False
         if '--' in s or '<|--' in s or '--|>' in s:
-            # Provjeri da nije unutar klase (linije unutar klase imaju atribute sa :)
             if not re.match(r'^\s*\w+\s*:', s):
                 is_relation = True
         
@@ -158,7 +156,6 @@ def _remove_duplicate_relations(puml_code: str) -> str:
         # Normalizuj liniju za poređenje
         normalized = ' '.join(s.split())
         
-        # Ako je već viđena tačno ovakva linija, preskoči
         if normalized in seen_exact:
             continue
         
@@ -166,13 +163,13 @@ def _remove_duplicate_relations(puml_code: str) -> str:
         
         # Za asocijacije (--), provjeri i obrnuti par
         if '--' in s and '<|--' not in s and '--|>' not in s:
-            # Izvuci entitete sa krajeva
-            parts = normalized.split()
-            # Prvi entitet je prije "1" ili kardinalnosti
-            ent_a = parts[0] if parts else ""
-            ent_b = parts[-1].split(':')[0].strip() if parts else ""
-            
-            if ent_a and ent_b:
+            # Regex za izvlačenje entiteta iz relacije sa kardinalnostima
+            # Format: EntitetA "kard" -- "kard" EntitetB : labela
+            match = re.match(r'(\w+)\s+"[^"]*"\s+--\s+"[^"]*"\s+(\w+)', s)
+            if match:
+                ent_a = match.group(1)
+                ent_b = match.group(2)
+                
                 pair = tuple(sorted([ent_a, ent_b]))
                 if pair in seen_pairs:
                     continue
