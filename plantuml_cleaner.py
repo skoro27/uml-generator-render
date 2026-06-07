@@ -380,7 +380,14 @@ def sanitize_puml(puml: str) -> str:
     puml = fix_relations(puml)
 
     # Postprocesiranje: PK operacije i uklanjanje naslijeđenih PK
+    print("DEBUG: Pozivam validate_and_fix_puml...")
+    puml_before = puml
     puml, warnings = validate_and_fix_puml(puml)
+    print(f"DEBUG: Warnings: {warnings}")
+    if puml_before != puml:
+        print("DEBUG: Kod je IZMIJENJEN!")
+    else:
+        print("DEBUG: Kod NIJE izmijenjen!")
 
     puml = rebuild_order(puml)
 
