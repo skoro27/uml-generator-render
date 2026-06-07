@@ -26,7 +26,7 @@ Ti si ekspert za UML dijagrame klasa. Generiši PlantUML kod na osnovu sljedeće
    }}
    
    ✅ DOBRO za složeni PK:
-   class Racun {{
+   class Račun {{
      PK(broj : Integer, godina : Integer)
      stanje : Double
    }}
@@ -47,15 +47,15 @@ Ti si ekspert za UML dijagrame klasa. Generiši PlantUML kod na osnovu sljedeće
    Koristi relacije za povezivanje klasa.
    
    ❌ LOŠE:
-   class PollingStation {{
-     Address address
+   class BiračkoMjesto {{
+     Adresa adresa
    }}
    
    ✅ DOBRO:
-   class PollingStation {{
-     PK(serialNumber : Integer)
+   class BiračkoMjesto {{
+     PK(redniBroj : Integer)
    }}
-   Address "1" -- "0..*" PollingStation : locatedAt
+   Adresa "1" -- "0..*" BiračkoMjesto : nalaziSeNa
 
 4. **Generalizacija (nasljeđivanje) se piše:** `Natklasa <|-- Potklasa`
 
@@ -63,13 +63,19 @@ Ti si ekspert za UML dijagrame klasa. Generiši PlantUML kod na osnovu sljedeće
    `KlasaA "1" -- "0..*" KlasaB : nazivVeze`
 
 6. **Ako više entiteta može dijeliti isti resurs, koristi "0..*" na toj strani.**
-   Npr: Address "1" -- "0..*" PollingStation (više stanica na istoj adresi)
+   Npr: Adresa "1" -- "0..*" BiračkoMjesto (više mjesta na istoj adresi)
 
 7. **Obavezno koristi @startuml i @enduml.**
 
 8. **Svi atributi moraju imati tip (String, Integer, Date, Boolean...)**
 
 9. **NE koristi <think> tagove. NE piši objašnjenja. SAMO PlantUML kod!**
+
+10. **SVE nazive klasa, atributa i relacija piši NA SRPSKOM JEZIKU (ijekavica)!**
+    - Imena klasa: Organ, BiračkiOdbor, IzbornaKomisija, Osoba, Adresa, Opština...
+    - Atributi: ime, prezime, datumRođenja, naziv, adresa, broj...
+    - Nazivi veza: ima, sadrži, pripada, imenuje, nalaziSe...
+    - NE koristi engleske riječi (name, address, id, member...)
 
 **Generiši SAMO PlantUML kod, bez dodatnih objašnjenja.**
 """
@@ -78,7 +84,7 @@ Ti si ekspert za UML dijagrame klasa. Generiši PlantUML kod na osnovu sljedeće
         response = client.chat.completions.create(
             model="qwen/qwen3-32b",
             messages=[
-                {"role": "system", "content": "Ti si ekspert za UML i PlantUML. Generišeš SAMO PlantUML kod bez objašnjenja i bez <think> tagova."},
+                {"role": "system", "content": "Ti si ekspert za UML i PlantUML. Generišeš SAMO PlantUML kod bez objašnjenja i bez <think> tagova. SVE pišeš na srpskom jeziku (ijekavica)."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
