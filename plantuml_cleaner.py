@@ -373,13 +373,12 @@ def sanitize_puml(puml: str) -> str:
     puml = normalize_classes(puml)
     puml = move_relations_outside_classes(puml)
 
-    puml = fix_attributes(puml)
+    # BITNO: Prvo postprocesiranje (briše PK iz potklasa), pa tek onda fix_attributes
+    puml, warnings = validate_and_fix_puml(puml)
 
+    puml = fix_attributes(puml)
     puml = fix_missing_entity_in_relation(puml)
     puml = fix_relations(puml)
-
-    # Postprocesiranje: PK operacije i uklanjanje naslijeđenih PK
-    puml, warnings = validate_and_fix_puml(puml)
 
     puml = rebuild_order(puml)
 
