@@ -1,7 +1,6 @@
-# v2.1 - PK fix - validate_and_fix_puml PRIJE fix_attributes
+# v2.2 - Bez hide methods, čuva -- i PK()
 import re
 import config
-import datetime
 from postprocessor import validate_and_fix_puml
 
 
@@ -42,9 +41,7 @@ def extract_plantuml(text: str) -> str:
             "@startuml\n"
             "skinparam defaultFontName Arial\n"
             "skinparam classAttributeIconSize 0\n"
-            "skinparam linetype ortho\n"
-            "hide methods\n"
-            "hide circle\n\n"
+            "skinparam linetype ortho\n\n"
             + "\n".join(plant_lines)
             + "\n@enduml"
         )
@@ -133,7 +130,7 @@ def normalize_classes(puml: str) -> str:
 
 
 def fix_attributes(puml: str) -> str:
-    """Popravlja atribute unutar klasa - uklanja metode i nepodržane tipove, ali čuva PK()."""
+    """Popravlja atribute - čuva -- i PK(), briše metode."""
     output = []
     in_class = False
     allowed_types = {"String", "Integer", "Date"}
@@ -155,7 +152,18 @@ def fix_attributes(puml: str) -> str:
             if not s:
                 continue
 
-            if "(" in s and ")" in s and "PK(" not in s:
+            # OBAVEZNO sačuvaj separator operacija
+            if s == "--":
+                output.append(line)
+                continue
+
+            # OBAVEZNO sačuvaj PK operaciju
+            if "PK(" in s and ")" in s:
+                output.append(line)
+                continue
+
+            # Briši ostale metode
+            if "(" in s and ")" in s:
                 continue
 
             if "<" in s or ">" in s or "[]" in s:
@@ -340,13 +348,12 @@ def rebuild_order(puml: str) -> str:
             if s:
                 others.append(line)
 
+    # BEZ hide methods i hide circle
     final = [
         "@startuml",
         "skinparam defaultFontName Arial",
         "skinparam classAttributeIconSize 0",
         "skinparam linetype ortho",
-        "hide methods",
-        "hide circle",
         ""
     ]
 
@@ -375,14 +382,8 @@ def sanitize_puml(puml: str) -> str:
     puml = normalize_classes(puml)
     puml = move_relations_outside_classes(puml)
 
-    # v2.1: Prvo postprocesiranje (briše PK iz potklasa), pa tek onda fix_attributes
+    # v2.2: Prvo postprocesiranje (briše PK iz potklasa), pa tek onda fix_attributes
     puml, warnings = validate_and_fix_puml(puml)
-    
-    # Debug: zapiši warnings u fajl
-    with open(config.DEBUG_FILE, "a", encoding="utf-8") as f:
-        f.write(f"\n=== DEBUG ===\n")
-        f.write(f"Warnings: {warnings}\n")
-        f.write(f"PK count after postprocess: {puml.count('PK(')}\n")
 
     puml = fix_attributes(puml)
     puml = fix_missing_entity_in_relation(puml)
