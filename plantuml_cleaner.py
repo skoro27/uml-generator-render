@@ -1,10 +1,11 @@
-# v4.0 - Univerzalno rješenje - briše SAMO PK() iz potklasa, ne dira atribute
+# v4.1 - Univerzalno rješenje + dijakritika + regex fix
 import re
 import config
 
 
 def remove_pk_from_subclasses(puml: str) -> str:
     """Uklanja PK() operacije i prazan -- samo iz potklasa. Atribute ne dira."""
+    puml = strip_diacritics(puml)
     lines = puml.splitlines()
 
     subclasses = set()
@@ -458,7 +459,7 @@ def sanitize_puml(puml: str) -> str:
     puml = normalize_classes(puml)
     puml = move_relations_outside_classes(puml)
 
-    # v4.0: Univerzalno - briše SAMO PK() iz potklasa, atribute ne dira
+    # v4.1: Univerzalno - briše SAMO PK() iz potklasa, atribute ne dira
     puml = remove_pk_from_subclasses(puml)
 
     puml = fix_attributes(puml)
