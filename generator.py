@@ -20,17 +20,21 @@ Ti si ekspert za UML dijagrame klasa. Generiši PlantUML kod na osnovu sljedeće
    
    ✅ DOBRO:
    class Osoba {{
-     PK(jmb : String)
+     jmb : String
      ime : String
      prezime : String
+     --
+     PK(jmb : String)
    }}
 
 2. **POTKLASE NE PONAVLJAJU PK od natklase!**
    
    ✅ DOBRO:
    class Osoba {{
-     PK(jmb : String)
+     jmb : String
      ime : String
+     --
+     PK(jmb : String)
    }}
    class Zaposleni {{
      plata : Double
