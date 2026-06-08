@@ -34,7 +34,7 @@ def remove_pk_from_subclasses(puml: str) -> str:
             s = line.strip()
 
             # Izbaci PK operaciju
-            if re.match(r"^PK\s*\(.*\)\s*$", s):
+            if re.match(r"^\s*PK\s*\(.*\)\s*$", s):
                 continue
 
             # Izbaci {PK} ako se negdje pojavi
