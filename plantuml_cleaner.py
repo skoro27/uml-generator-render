@@ -1,4 +1,4 @@
-# v3.0 - SVE u jednom fajlu - postprocessor direktno integrisan
+# v3.1 - Potklase ne brišu atribute, prošireni allowed_types
 import re
 import config
 
@@ -99,13 +99,8 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
     attr_pattern2 = r'^\s*(\w+)\s*:\s*(\w+)'
     
     if is_potklasa:
-        # POTKLASA - ukloni SVE atribute koji liče na PK, NE dodaj PK
-        for match in re.finditer(attr_pattern2, body_text, re.MULTILINE):
-            attr_name = match.group(1)
-            if attr_name.lower() in ['id', 'jmb', 'jmbg', 'sifra', 'oib', 'maticni_broj', 'broj', 'kod', 
-                                       'serialnumber', 'uniquecode', 'memberid', 'boid', 'mjestoId',
-                                       'rednibroj', 'naziv', 'opština', 'adresa', 'oznaka']:
-                body_text = body_text.replace(match.group(0), "")
+        # POTKLASA: NE briši atribute, samo ne dodaj PK
+        pass
     else:
         # NATKLASA - pronađi PK atribute za PK operaciju
         for match in re.finditer(attr_pattern2, body_text, re.MULTILINE):
@@ -135,7 +130,7 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
         elif existing_pk:
             result_lines.append("    --")
             result_lines.append(f"    PK({existing_pk[0]})")
-    # POTKLASE: ne dodaj ništa (ni --, ni PK)
+    # POTKLASE: ne dodaj ništa (ni --, ni PK), atributi ostaju netaknuti
     
     return result_lines
 
@@ -317,7 +312,7 @@ def fix_attributes(puml: str) -> str:
     """Popravlja atribute - čuva -- i PK(), briše metode."""
     output = []
     in_class = False
-    allowed_types = {"String", "Integer", "Date"}
+    allowed_types = {"String", "Integer", "Date", "Boolean", "Double"}
 
     for line in puml.splitlines():
         s = line.strip()
@@ -365,7 +360,7 @@ def fix_attributes(puml: str) -> str:
 
                 continue
 
-            m = re.match(r"^(String|Integer|Date)\s+([A-Za-z_]\w*)$", s)
+            m = re.match(r"^(String|Integer|Date|Boolean|Double)\s+([A-Za-z_]\w*)$", s)
             if m:
                 typ = m.group(1)
                 attr = m.group(2)
@@ -565,7 +560,7 @@ def sanitize_puml(puml: str) -> str:
     puml = normalize_classes(puml)
     puml = move_relations_outside_classes(puml)
 
-    # v3.0: Postprocessor direktno integrisan - briše PK iz potklasa
+    # v3.1: Postprocessor direktno integrisan - briše PK iz potklasa, NE diraj atribute
     puml = _postprocess_puml(puml)
 
     puml = fix_attributes(puml)
