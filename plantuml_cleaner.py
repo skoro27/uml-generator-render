@@ -1,6 +1,7 @@
 # v2.1 - PK fix - validate_and_fix_puml PRIJE fix_attributes
 import re
 import config
+import datetime
 from postprocessor import validate_and_fix_puml
 
 
@@ -376,6 +377,12 @@ def sanitize_puml(puml: str) -> str:
 
     # v2.1: Prvo postprocesiranje (briše PK iz potklasa), pa tek onda fix_attributes
     puml, warnings = validate_and_fix_puml(puml)
+    
+    # Debug: zapiši warnings u fajl
+    with open(config.DEBUG_FILE, "a", encoding="utf-8") as f:
+        f.write(f"\n=== DEBUG ===\n")
+        f.write(f"Warnings: {warnings}\n")
+        f.write(f"PK count after postprocess: {puml.count('PK(')}\n")
 
     puml = fix_attributes(puml)
     puml = fix_missing_entity_in_relation(puml)
