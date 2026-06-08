@@ -1,3 +1,4 @@
+# v2.1 - PK fix - validate_and_fix_puml PRIJE fix_attributes
 import re
 import config
 from postprocessor import validate_and_fix_puml
@@ -373,7 +374,7 @@ def sanitize_puml(puml: str) -> str:
     puml = normalize_classes(puml)
     puml = move_relations_outside_classes(puml)
 
-    # BITNO: Prvo postprocesiranje (briše PK iz potklasa), pa tek onda fix_attributes
+    # v2.1: Prvo postprocesiranje (briše PK iz potklasa), pa tek onda fix_attributes
     puml, warnings = validate_and_fix_puml(puml)
 
     puml = fix_attributes(puml)
