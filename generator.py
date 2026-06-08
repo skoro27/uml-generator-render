@@ -24,12 +24,6 @@ Ti si ekspert za UML dijagrame klasa. Generiši PlantUML kod na osnovu sljedeće
      ime : String
      prezime : String
    }}
-   
-   ✅ DOBRO za složeni PK:
-   class Račun {{
-     PK(broj : Integer, godina : Integer)
-     stanje : Double
-   }}
 
 2. **POTKLASE NE PONAVLJAJU PK od natklase!**
    
@@ -44,7 +38,6 @@ Ti si ekspert za UML dijagrame klasa. Generiši PlantUML kod na osnovu sljedeće
    Osoba <|-- Zaposleni
 
 3. **NE stavljaj objekte drugih klasa kao atribute!**
-   Koristi relacije za povezivanje klasa.
 
 4. **Generalizacija (nasljeđivanje) se piše:** `Natklasa <|-- Potklasa`
 
