@@ -563,7 +563,8 @@ def sanitize_puml(puml: str) -> str:
     # v3.1: Postprocessor direktno integrisan - briše PK iz potklasa, NE diraj atribute
     puml = _postprocess_puml(puml)
 
-    puml = fix_attributes(puml)
+    # TEST: privremeno bez fix_attributes
+    # puml = fix_attributes(puml)
     puml = fix_missing_entity_in_relation(puml)
     puml = fix_relations(puml)
 
