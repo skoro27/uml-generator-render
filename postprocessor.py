@@ -81,9 +81,9 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
     # 1. Ukloni sve {PK} oznake
     body_text = re.sub(r'\{\s*PK\s*\}\s*', '', body_text)
     
-    # 2. Ukloni sve postojeće PK() operacije
+    # 2. Ukloni sve postojeće PK() operacije (sve varijante)
+    body_text = re.sub(r'^\s*PK\([^)]*\)\s*$', '', body_text, flags=re.MULTILINE)
     body_text = re.sub(r'PK\([^)]*\)', '', body_text)
-    body_text = re.sub(r'^\s*--\s*$', '', body_text, flags=re.MULTILINE)
     
     # 3. Ukloni reference na druge klase
     attr_pattern = r'^\s*(\w+)\s+(\w+)\s*$'
@@ -102,7 +102,7 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
             attr_name = match.group(1)
             if attr_name.lower() in ['id', 'jmb', 'sifra', 'oib', 'maticni_broj', 'broj', 'kod', 
                                        'serialnumber', 'uniquecode', 'memberid', 'boid', 'mjestoId',
-                                       'rednibroj', 'naziv']:
+                                       'rednibroj', 'naziv', 'opština']:
                 body_text = body_text.replace(match.group(0), "")
     else:
         # NATKLASA - pronađi PK atribute za PK operaciju
@@ -112,7 +112,7 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
             
             if attr_name.lower() in ['id', 'jmb', 'sifra', 'oib', 'maticni_broj', 'broj', 'kod', 
                                        'serialnumber', 'uniquecode', 'memberid', 'boid', 'mjestoId',
-                                       'rednibroj', 'naziv']:
+                                       'rednibroj', 'naziv', 'opština']:
                 pk_attributes.append((attr_name, attr_type))
                 body_text = body_text.replace(match.group(0), "")
     
