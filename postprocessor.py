@@ -81,7 +81,10 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
     # 1. Ukloni sve {PK} oznake
     body_text = re.sub(r'\{\s*PK\s*\}\s*', '', body_text)
     
-    # 2. Ukloni sve postojeće PK() operacije (sve varijante)
+    # 2. Sačuvaj postojeće PK parametre prije brisanja
+    existing_pk = re.findall(r'PK\(([^)]*)\)', body_text)
+    
+    # Zatim ukloni sve postojeće PK() operacije
     body_text = re.sub(r'^\s*PK\([^)]*\)\s*$', '', body_text, flags=re.MULTILINE)
     body_text = re.sub(r'PK\([^)]*\)', '', body_text)
     
@@ -102,7 +105,7 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
             attr_name = match.group(1)
             if attr_name.lower() in ['id', 'jmb', 'sifra', 'oib', 'maticni_broj', 'broj', 'kod', 
                                        'serialnumber', 'uniquecode', 'memberid', 'boid', 'mjestoId',
-                                       'rednibroj', 'naziv', 'opština']:
+                                       'rednibroj', 'naziv', 'opština', 'adresa']:
                 body_text = body_text.replace(match.group(0), "")
     else:
         # NATKLASA - pronađi PK atribute za PK operaciju
@@ -112,7 +115,7 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
             
             if attr_name.lower() in ['id', 'jmb', 'sifra', 'oib', 'maticni_broj', 'broj', 'kod', 
                                        'serialnumber', 'uniquecode', 'memberid', 'boid', 'mjestoId',
-                                       'rednibroj', 'naziv', 'opština']:
+                                       'rednibroj', 'naziv', 'opština', 'adresa']:
                 pk_attributes.append((attr_name, attr_type))
                 body_text = body_text.replace(match.group(0), "")
     
@@ -128,6 +131,10 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
         result_lines.append("    --")
         pk_params = ", ".join([f"{name} : {tip}" for name, tip in pk_attributes])
         result_lines.append(f"    PK({pk_params})")
+    elif existing_pk and not is_potklasa:
+        # Ako nema PK atributa ali je LLM generisao PK(), sačuvaj ga
+        result_lines.append("    --")
+        result_lines.append(f"    PK({existing_pk[0]})")
     
     return result_lines
 
