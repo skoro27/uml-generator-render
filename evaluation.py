@@ -24,26 +24,22 @@ def evaluate_puml(puml_code: str, rendered_ok: bool = False) -> dict:
     
     inheritance_map = {}
     
-    # 1. Pronađi sve klase
     class_pattern = r'^\s*(class|interface|enum)\s+(\w+)\s*\{'
     classes = re.findall(class_pattern, puml_code, re.MULTILINE)
     results["class_count"] = len(classes)
     
-    # 2. Pronađi nasljeđivanja
     inheritance_pattern = r'(\w+)\s*<\|--\s*(\w+)'
     for match in re.findall(inheritance_pattern, puml_code):
         natklasa, potklasa = match
         inheritance_map[potklasa] = natklasa
         results["inheritance_count"] += 1
     
-    # Takođe: Potklasa --|> Natklasa
     inheritance_pattern2 = r'(\w+)\s*--\|>\s*(\w+)'
     for match in re.findall(inheritance_pattern2, puml_code):
         potklasa, natklasa = match
         inheritance_map[potklasa] = natklasa
         results["inheritance_count"] += 1
     
-    # 3. Parsiranje svake klase
     current_class = None
     inside_class = False
     
@@ -69,7 +65,6 @@ def evaluate_puml(puml_code: str, rendered_ok: bool = False) -> dict:
     if current_class:
         results = _process_class(current_class, results, inheritance_map)
     
-    # 4. Pronađi relacije
     for linija in puml_code.splitlines():
         if "--" in linija and "<|--" not in linija and "--|>" not in linija:
             results["relation_count"] += 1
@@ -88,27 +83,21 @@ def evaluate_puml(puml_code: str, rendered_ok: bool = False) -> dict:
 
 
 def _process_class(class_data, results, inheritance_map):
-    """Procesuira jednu klasu i ažurira rezultate."""
-    
     class_name = class_data["name"]
     is_potklasa = class_name in inheritance_map
     
     class_body = "".join(class_data["body"])
     
-    # 1. Pronađi PK operacije (ispravan format)
     pk_ops = re.findall(r'^\s*PK\s*\(([^)]+)\)', class_body, re.MULTILINE)
     results["pk_operation_count"] += len(pk_ops)
     
-    # 2. Pronađi neispravne {PK} oznake
     invalid_pk = re.findall(r'\{PK\}', class_body)
     results["invalid_pk_count"] += len(invalid_pk)
     
-    # 3. Pronađi atribute
     body_without_pk = re.sub(r'PK\([^)]+\)', '', class_body)
     attributes = re.findall(r'^\s*(\w+)\s*:\s*(\w+)', body_without_pk, re.MULTILINE)
     results["attribute_count"] += len(attributes)
     
-    # 4. Provjera: potklasa ne smije imati atribut 'id'
     if is_potklasa:
         for attr in attributes:
             if attr[0].lower() == 'id':
