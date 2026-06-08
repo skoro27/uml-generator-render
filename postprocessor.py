@@ -84,9 +84,10 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
     # 2. Sačuvaj postojeće PK parametre prije brisanja
     existing_pk = re.findall(r'PK\(([^)]*)\)', body_text)
     
-    # Zatim ukloni sve postojeće PK() operacije
+    # Zatim ukloni sve postojeće PK() operacije i -- linije
     body_text = re.sub(r'^\s*PK\([^)]*\)\s*$', '', body_text, flags=re.MULTILINE)
     body_text = re.sub(r'PK\([^)]*\)', '', body_text)
+    body_text = re.sub(r'^\s*--\s*$', '', body_text, flags=re.MULTILINE)
     
     # 3. Ukloni reference na druge klase
     attr_pattern = r'^\s*(\w+)\s+(\w+)\s*$'
@@ -103,9 +104,9 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
         # POTKLASA - ukloni SVE atribute koji liče na PK, NE dodaj PK
         for match in re.finditer(attr_pattern2, body_text, re.MULTILINE):
             attr_name = match.group(1)
-            if attr_name.lower() in ['id', 'jmb', 'sifra', 'oib', 'maticni_broj', 'broj', 'kod', 
+            if attr_name.lower() in ['id', 'jmb', 'jmbg', 'sifra', 'oib', 'maticni_broj', 'broj', 'kod', 
                                        'serialnumber', 'uniquecode', 'memberid', 'boid', 'mjestoId',
-                                       'rednibroj', 'naziv', 'opština', 'adresa']:
+                                       'rednibroj', 'naziv', 'opština', 'adresa', 'oznaka']:
                 body_text = body_text.replace(match.group(0), "")
     else:
         # NATKLASA - pronađi PK atribute za PK operaciju
@@ -113,9 +114,9 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
             attr_name = match.group(1)
             attr_type = match.group(2)
             
-            if attr_name.lower() in ['id', 'jmb', 'sifra', 'oib', 'maticni_broj', 'broj', 'kod', 
+            if attr_name.lower() in ['id', 'jmb', 'jmbg', 'sifra', 'oib', 'maticni_broj', 'broj', 'kod', 
                                        'serialnumber', 'uniquecode', 'memberid', 'boid', 'mjestoId',
-                                       'rednibroj', 'naziv', 'opština', 'adresa']:
+                                       'rednibroj', 'naziv', 'opština', 'adresa', 'oznaka']:
                 pk_attributes.append((attr_name, attr_type))
                 body_text = body_text.replace(match.group(0), "")
     
@@ -127,14 +128,16 @@ def _process_class_body(body_lines, class_name, inheritance_map, all_class_names
         if stripped and ':' in stripped:
             result_lines.append(line)
     
-    if pk_attributes and not is_potklasa:
-        result_lines.append("    --")
-        pk_params = ", ".join([f"{name} : {tip}" for name, tip in pk_attributes])
-        result_lines.append(f"    PK({pk_params})")
-    elif existing_pk and not is_potklasa:
-        # Ako nema PK atributa ali je LLM generisao PK(), sačuvaj ga
-        result_lines.append("    --")
-        result_lines.append(f"    PK({existing_pk[0]})")
+    # SAMO za natklase dodaj -- i PK
+    if not is_potklasa:
+        if pk_attributes:
+            result_lines.append("    --")
+            pk_params = ", ".join([f"{name} : {tip}" for name, tip in pk_attributes])
+            result_lines.append(f"    PK({pk_params})")
+        elif existing_pk:
+            result_lines.append("    --")
+            result_lines.append(f"    PK({existing_pk[0]})")
+    # POTKLASE: ne dodaj ništa (ni --, ni PK)
     
     return result_lines
 
