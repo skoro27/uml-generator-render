@@ -60,8 +60,7 @@ with st.sidebar:
         - `1..*` = bar jedan
         """)
 
-    with st.expander("🟢🟡🔴 Semafor"):
-        st.write("Vizuelna ocjena: zeleno = dobro, žuto = osrednje, crveno = loše")
+    
 
     st.divider()
     st.caption("📌 v2.1 | Groq API | Qwen3-32B")
