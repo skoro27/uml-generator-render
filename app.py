@@ -1,3 +1,12 @@
+kolona1, kolona2 = st.columns([2, 1])
+
+with kolona1:
+    st.subheader("📊 Generisani dijagram")
+    if putanja_png.exists():
+        st.image(str(putanja_png), use_container_width=True)
+    else:
+        st.error("PNG fajl nije kreiran.")
+
 with kolona2:
     st.subheader("📈 Evaluacija")
     
@@ -39,27 +48,15 @@ with kolona2:
             <th style="text-align:center; padding:5px;">Broj</th>
             <th style="text-align:center; padding:5px;">Status</th>
         </tr>
-        <tr>
-            <td><b>1 : 1</b></td>
-            <td>One-to-One</td>
-            <td>Jedan vezan za tačno jedan</td>
+        <tr><td><b>1 : 1</b></td><td>One-to-One</td><td>Jedan vezan za tačno jedan</td>
             <td align="center"><b>{jedan_jedan}</b></td>
-            <td align="center">{'Postoji' if jedan_jedan > 0 else 'Nema'}</td>
-        </tr>
-        <tr>
-            <td><b>1 : N</b></td>
-            <td>One-to-Many</td>
-            <td>Jedan vezan za više</td>
+            <td align="center">{'Postoji' if jedan_jedan > 0 else 'Nema'}</td></tr>
+        <tr><td><b>1 : N</b></td><td>One-to-Many</td><td>Jedan vezan za više</td>
             <td align="center"><b>{jedan_vise}</b></td>
-            <td align="center">{'OK' if jedan_vise >= 3 else 'UPOZORENJE'}</td>
-        </tr>
-        <tr>
-            <td><b>M : N</b></td>
-            <td>Many-to-Many</td>
-            <td>Više vezano za više</td>
+            <td align="center">{'OK' if jedan_vise >= 3 else 'UPOZORENJE'}</td></tr>
+        <tr><td><b>M : N</b></td><td>Many-to-Many</td><td>Više vezano za više</td>
             <td align="center"><b>{vise_vise}</b></td>
-            <td align="center">{'Postoji' if vise_vise > 0 else 'Nema'}</td>
-        </tr>
+            <td align="center">{'Postoji' if vise_vise > 0 else 'Nema'}</td></tr>
     </table>
     """, unsafe_allow_html=True)
     
