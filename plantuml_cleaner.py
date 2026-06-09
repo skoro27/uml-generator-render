@@ -1,4 +1,10 @@
-# v5.1 - Dvostruko pozivanje remove_pk_from_subclasses + popravljen regex
+# plantuml_cleaner.py - v5.2
+# Finalni cleanup:
+# - PK ostaje kao operacija ispod --
+# - PK se briše iz svih potklasa
+# - atributi potklasa se ne brišu
+# - bez hide methods
+
 import re
 import config
 
@@ -131,6 +137,10 @@ def move_relations_outside_classes(puml: str) -> str:
 
 
 def remove_pk_from_subclasses(puml: str) -> str:
+    """
+    Briše samo PK(...) i prazan separator -- iz potklasa.
+    Ne briše atribute.
+    """
     lines = puml.splitlines()
     subclasses = set()
 
@@ -338,16 +348,15 @@ def sanitize_puml(puml: str) -> str:
     puml = normalize_classes_and_relations(puml)
     puml = move_relations_outside_classes(puml)
 
-    # Prvo brisanje PK iz potklasa
     puml = remove_pk_from_subclasses(puml)
-
     puml = fix_attributes(puml)
-
-    # Drugo brisanje PK iz potklasa, za sigurnost
     puml = remove_pk_from_subclasses(puml)
 
     puml = fix_relations(puml)
     puml = rebuild_order(puml)
+
+    # FINALNI CLEANUP - najvažnija razlika u v5.2
+    puml = remove_pk_from_subclasses(puml)
 
     if "class " not in puml:
         raise ValueError("Nema class definicija u PlantUML kodu.")
