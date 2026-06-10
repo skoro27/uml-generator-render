@@ -70,10 +70,12 @@ Ti si ekspert za UML dijagrame klasa. Generiši PlantUML kod na osnovu sljedeće
             max_tokens=4000
         )
         
-         # DEBUG: Sačuvaj sirovi odgovor
+        puml_code = response.choices[0].message.content or ""
+        
+        # DEBUG: Sačuvaj sirovi odgovor
         with open("debug_groq_response.txt", "w", encoding="utf-8") as f:
-            f.write(f"STATUS: success\n")
-            f.write(f"CONTENT: {puml_code[:500] if puml_code else 'PRAZNO!'}\n")
+            f.write("STATUS: success\n")
+            f.write(f"CONTENT: {puml_code[:1000] if puml_code else 'PRAZNO!'}\n")
         
         # Ukloni <think> tagove (i sa i bez zatvarajućeg taga)
         puml_code = re.sub(r'<think>.*?</think>', '', puml_code, flags=re.DOTALL)
