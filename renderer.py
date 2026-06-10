@@ -16,7 +16,7 @@ def run_plantuml(puml_file: Path):
             url,
             data=puml_code.encode('utf-8'),
             headers={'Content-Type': 'text/plain'},
-            timeout=30
+            timeout=60
         )
         
         if response.status_code == 200:
