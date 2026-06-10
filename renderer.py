@@ -4,24 +4,27 @@ from pathlib import Path
 
 def run_plantuml(puml_file: Path):
     """
-    Renderuje PlantUML fajl koristeći k8s PlantUML server.
+    Renderuje PlantUML fajl koristeći Kroki.io server.
     Vraća (return_code, error_message).
     """
     puml_code = puml_file.read_text(encoding="utf-8")
     
+    url = "https://kroki.io/plantuml/png"
+    
     try:
         response = requests.post(
-            "https://k8s.plantuml.com/plantuml/form",
-            data={"text": puml_code},
+            url,
+            data=puml_code.encode('utf-8'),
+            headers={'Content-Type': 'text/plain'},
             timeout=60
         )
         
-        if response.status_code == 200 and len(response.content) > 100:
+        if response.status_code == 200:
             png_path = puml_file.with_suffix(".png")
             png_path.write_bytes(response.content)
             return 0, ""
         else:
-            return 1, f"PlantUML server greška: HTTP {response.status_code}"
+            return 1, f"Kroki server greška: HTTP {response.status_code}"
             
     except requests.exceptions.Timeout:
         return 1, "Vreme za renderovanje je isteklo."
