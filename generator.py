@@ -1,33 +1,87 @@
-import requests
-from pathlib import Path
+import os
+import re
+from groq import Groq
+from config import GROQ_API_KEY
 
+client = Groq(api_key=GROQ_API_KEY)
 
-def run_plantuml(puml_file: Path):
-    """
-    Renderuje PlantUML fajl koristeći k8s PlantUML server.
-    Vraća (return_code, error_message).
-    """
-    puml_code = puml_file.read_text(encoding="utf-8")
+def generate_puml(description: str) -> str:
+    """Generiše PlantUML klasni dijagram na osnovu opisa sistema."""
+    
+    prompt = f"""
+Ti si ekspert za UML dijagrame klasa. Generiši PlantUML kod na osnovu sljedećeg opisa sistema.
+
+**OPIS SISTEMA:**
+{description}
+
+**PRAVILA KOJA SE MORAJU POŠTOVATI (KRITIČNO VAŽNO!):**
+
+1. **Primarni ključ (PK) se piše KAO OPERACIJA, ne kao atribut!**
+   
+   ✅ DOBRO:
+   class Osoba {{
+     jmb : String
+     ime : String
+     prezime : String
+     --
+     PK(jmb : String)
+   }}
+
+2. **POTKLASE NE PONAVLJAJU PK od natklase!**
+   
+   ✅ DOBRO:
+   class Osoba {{
+     jmb : String
+     ime : String
+     --
+     PK(jmb : String)
+   }}
+   class Zaposleni {{
+     plata : Double
+   }}
+   Osoba <|-- Zaposleni
+
+3. **NE stavljaj objekte drugih klasa kao atribute!**
+
+4. **Generalizacija (nasljeđivanje) se piše:** `Natklasa <|-- Potklasa`
+
+5. **Asocijacije sa kardinalnostima:**
+   `KlasaA "1" -- "0..*" KlasaB : nazivVeze`
+
+6. **Obavezno koristi @startuml i @enduml.**
+
+7. **Svi atributi moraju imati tip (String, Integer, Date, Boolean...)**
+
+8. **NE koristi <think> tagove. NE piši objašnjenja. SAMO PlantUML kod!**
+
+9. **SVE nazive klasa, atributa i relacija piši NA SRPSKOM JEZIKU (ijekavica)!**
+
+**Generiši SAMO PlantUML kod, bez dodatnih objašnjenja.**
+"""
     
     try:
-        response = requests.post(
-            "https://k8s.plantuml.com/plantuml/form",
-            data={"text": puml_code},
-            timeout=60
+        response = client.chat.completions.create(
+            model="qwen/qwen3-32b",
+            messages=[
+                {"role": "system", "content": "Ti si ekspert za UML i PlantUML. Generišeš SAMO PlantUML kod bez objašnjenja i bez <think> tagova. SVE pišeš na srpskom jeziku (ijekavica)."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.1,
+            max_tokens=4000
         )
         
-        if response.status_code == 200 and len(response.content) > 100:
-            png_path = puml_file.with_suffix(".png")
-            png_path.write_bytes(response.content)
-            return 0, ""
-        else:
-            return 1, f"PlantUML server greška: HTTP {response.status_code}"
-            
-    except requests.exceptions.Timeout:
-        return 1, "Vreme za renderovanje je isteklo."
-    
-    except requests.exceptions.RequestException as e:
-        return 1, f"Greška pri povezivanju: {str(e)}"
-    
+        puml_code = response.choices[0].message.content or ""
+        
+        # Ukloni <think> tagove (i sa i bez zatvarajućeg taga)
+        puml_code = re.sub(r'<think>.*?</think>', '', puml_code, flags=re.DOTALL)
+        puml_code = re.sub(r'<think>.*', '', puml_code, flags=re.DOTALL)
+        
+        # Očisti markdown formatiranje
+        puml_code = re.sub(r'^```plantuml\n?', '', puml_code, flags=re.MULTILINE)
+        puml_code = re.sub(r'^```\n?', '', puml_code, flags=re.MULTILINE)
+        puml_code = puml_code.strip()
+        
+        return puml_code
+        
     except Exception as e:
-        return 1, f"Nepoznata greška: {str(e)}"
+        raise Exception(f"Greška pri generisanju PlantUML koda: {str(e)}")
