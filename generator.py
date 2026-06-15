@@ -71,14 +71,6 @@ Ti si ekspert za UML dijagrame klasa. Generiši PlantUML kod na osnovu sljedeće
         )
         
         puml_code = response.choices[0].message.content or ""
-        
-        # Ukloni <think> tagove (i sa i bez zatvarajućeg taga)
-        puml_code = re.sub(r'<think>.*?</think>', '', puml_code, flags=re.DOTALL)
-        puml_code = re.sub(r'<think>.*', '', puml_code, flags=re.DOTALL)
-        
-        # Očisti markdown formatiranje
-        puml_code = re.sub(r'^```plantuml\n?', '', puml_code, flags=re.MULTILINE)
-        puml_code = re.sub(r'^```\n?', '', puml_code, flags=re.MULTILINE)
         puml_code = puml_code.strip()
         
         return puml_code
