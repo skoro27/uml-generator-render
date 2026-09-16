@@ -61,7 +61,7 @@ Ti si ekspert za UML dijagrame klasa. Generiši PlantUML kod na osnovu sljedeće
     
     try:
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-120b",
             messages=[
                 {"role": "system", "content": "Ti si ekspert za UML i PlantUML. Generišeš SAMO PlantUML kod bez objašnjenja i bez <think> tagova. SVE pišeš na srpskom jeziku (ijekavica)."},
                 {"role": "user", "content": prompt}
