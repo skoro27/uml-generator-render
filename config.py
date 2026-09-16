@@ -11,7 +11,7 @@ RAW_PUML_FILE = PUML_FILE
 
 # Groq API podešavanja
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-GROQ_MODEL = "openai/gpt-oss-120b"
+GROQ_MODEL = "llama-3.3-70b-versatile"
 GROQ_MAX_TOKENS = 2048
 GROQ_TEMPERATURE = 0.3
 
